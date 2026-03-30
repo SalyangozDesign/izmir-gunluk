@@ -78,11 +78,11 @@ if panes_list:
                 pane_df, 
                 hide_index=True, 
                 use_container_width=True,
-                # SIRA sütununu dar, diğerlerini geniş yapma ayarı
+                # SIRA sütununu tam rakama göre (50 piksel) kesin olarak sabitliyoruz
                 column_config={
-                    "SIRA": st.column_config.NumberColumn("Sıra", format="%d", width="small"),
-                    "OLUKLU MUKAVVA": st.column_config.TextColumn("OLUKLU MUKAVVA", width="large"),
-                    "ESNEK AMBALAJ": st.column_config.TextColumn("ESNEK AMBALAJ", width="large"),
+                    "SIRA": st.column_config.NumberColumn("Sıra", format="%d", width=50),
+                    "OLUKLU MUKAVVA": st.column_config.TextColumn("OLUKLU MUKAVVA"),
+                    "ESNEK AMBALAJ": st.column_config.TextColumn("ESNEK AMBALAJ"),
                 }
             )
 else:
