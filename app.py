@@ -5,9 +5,12 @@ import datetime
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
-# GÖRSEL TEMİZLİK (Streamlit kalıntılarını gizle)
+# GÖRSEL TEMİZLİK VE ZORUNLU LIGHT MODE EKLENTİSİ
 st.markdown("""
     <style>
+    /* Zorunlu Light Mode (Siyah ekranı tamamen engeller, zorla beyaz yapar) */
+    .stApp { background-color: #ffffff !important; color: #000000 !important; }
+    
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
@@ -62,14 +65,15 @@ def veri_getir_ve_isle():
 
 panes_list = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (Tam Excel Görünümü - Hatasız) ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU (Dark Mode Korumalı) ---
 def ozel_tablo_ciz(df):
-    # Boşluklar yüzünden koda dönüşmemesi için her şeyi tek satır mantığıyla birleştiriyoruz
     html = "<style>"
-    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-bottom: 20px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }"
-    html += ".ozel-tablo th { background-color: #002266; color: white; text-align: left; padding: 8px; font-size: 13px; border: 1px solid #004d99; }"
-    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266; }"
-    html += ".ozel-tablo tr:nth-child(even) { background-color: #f8fbff; }"
+    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-bottom: 20px; box-shadow: 0 0 5px rgba(0,0,0,0.1); background-color: #ffffff !important; }"
+    html += ".ozel-tablo th { background-color: #002266 !important; color: #ffffff !important; text-align: left; padding: 8px; font-size: 13px; border: 1px solid #004d99; }"
+    # Tüm hücreleri zorla beyaz zemin ve lacivert yazı yap
+    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266 !important; background-color: #ffffff !important; }"
+    # Çift satırları (şeritleri) zorla açık mavi yap
+    html += ".ozel-tablo tr:nth-child(even) td { background-color: #f8fbff !important; }"
     html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
     html += "</style>"
     html += "<table class='ozel-tablo'>"
