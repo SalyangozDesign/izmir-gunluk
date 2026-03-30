@@ -65,24 +65,30 @@ def veri_getir_ve_isle():
 
 panes_list = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (Dark Mode Korumalı) ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU (Dark Mode + Mobil Korumalı) ---
 def ozel_tablo_ciz(df):
     html = "<style>"
-    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-bottom: 20px; box-shadow: 0 0 5px rgba(0,0,0,0.1); background-color: #ffffff !important; }"
+    # MOBİL KORUMA 1: Tabloyu saracak ve telefonda sağa sola kaydırılmasını sağlayacak kutu
+    html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
+    
+    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; box-shadow: 0 0 5px rgba(0,0,0,0.1); background-color: #ffffff !important; min-width: 600px; }"
     html += ".ozel-tablo th { background-color: #002266 !important; color: #ffffff !important; text-align: left; padding: 8px; font-size: 13px; border: 1px solid #004d99; }"
-    # Tüm hücreleri zorla beyaz zemin ve lacivert yazı yap
-    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266 !important; background-color: #ffffff !important; }"
-    # Çift satırları (şeritleri) zorla açık mavi yap
+    
+    # MOBİL KORUMA 2: Uzun metinleri alt satıra kırmaya zorlayan "word-break" komutu eklendi
+    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266 !important; background-color: #ffffff !important; word-wrap: break-word; word-break: break-word; }"
+    
     html += ".ozel-tablo tr:nth-child(even) td { background-color: #f8fbff !important; }"
     html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
     html += "</style>"
-    html += "<table class='ozel-tablo'>"
+    
+    # Tabloyu sarmalayıcı (scroll) kutunun içine alıyoruz
+    html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
     html += "<thead><tr><th class='sira-sutunu'>Sıra</th><th>OLUKLU MUKAVVA</th><th>ESNEK AMBALAJ</th></tr></thead><tbody>"
     
     for index, row in df.iterrows():
         html += f"<tr><td class='sira-sutunu'>{row['SIRA']}</td><td>{row['OLUKLU MUKAVVA']}</td><td>{row['ESNEK AMBALAJ']}</td></tr>"
         
-    html += "</tbody></table>"
+    html += "</tbody></table></div>"
     return html
 
 # --- GÖSTERİM ---
