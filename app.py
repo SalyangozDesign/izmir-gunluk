@@ -25,12 +25,12 @@ tarih_str = bugun.strftime("%d.%m.%Y") + " " + gunler[bugun.weekday()]
 
 # --- ANA BAŞLIK ---
 st.markdown(f"""
-    <div style="background-color: #004d99; padding: 15px; margin-bottom: 0px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-        <h2 style='color: white; text-align: center; margin: 0px; font-size: 24px;'>📋 İZMİR ŞUBE OFİSİ ÜRETİM LİSTESİ</h2>
-    </div>
-    <div style="background-color: #e6f0ff; padding: 8px; margin-bottom: 20px; border-bottom: 2px solid #004d99; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
-        <h4 style='color: #004d99; text-align: center; margin: 0px; font-size: 16px;'>{tarih_str}</h4>
-    </div>
+<div style="background-color: #004d99; padding: 15px; margin-bottom: 0px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
+<h2 style='color: white; text-align: center; margin: 0px; font-size: 24px;'>📋 İZMİR ŞUBE OFİSİ ÜRETİM LİSTESİ</h2>
+</div>
+<div style="background-color: #e6f0ff; padding: 8px; margin-bottom: 20px; border-bottom: 2px solid #004d99; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
+<h4 style='color: #004d99; text-align: center; margin: 0px; font-size: 16px;'>{tarih_str}</h4>
+</div>
 """, unsafe_allow_html=True)
 
 # --- AKILLI VERİ ÇEKME MOTORU ---
@@ -62,58 +62,22 @@ def veri_getir_ve_isle():
 
 panes_list = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (Tam Excel Görünümü) ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU (Tam Excel Görünümü - Hatasız) ---
 def ozel_tablo_ciz(df):
-    html = """
-    <style>
-    .ozel-tablo {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: Arial, sans-serif;
-        margin-bottom: 20px;
-        box-shadow: 0 0 5px rgba(0,0,0,0.1);
-    }
-    .ozel-tablo th {
-        background-color: #002266; /* Koyu Lacivert Başlıklar */
-        color: white;
-        text-align: left;
-        padding: 8px;
-        font-size: 13px;
-        border: 1px solid #004d99;
-    }
-    .ozel-tablo td {
-        padding: 8px;
-        border: 1px solid #cce0ff; /* Açık mavi kenarlıklar */
-        font-size: 13px;
-        color: #002266; /* Koyu mavi yazılar */
-    }
-    .ozel-tablo tr:nth-child(even) {
-        background-color: #f8fbff; /* Çok açık mavi şerit efekti */
-    }
-    .sira-sutunu {
-        width: 40px !important; /* SIRA SÜTUNUNU KESİN OLARAK DARALTIYORUZ */
-        text-align: center !important;
-        font-weight: bold;
-    }
-    </style>
-    <table class="ozel-tablo">
-        <thead>
-            <tr>
-                <th class="sira-sutunu">Sıra</th>
-                <th>OLUKLU MUKAVVA</th>
-                <th>ESNEK AMBALAJ</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
+    # Boşluklar yüzünden koda dönüşmemesi için her şeyi tek satır mantığıyla birleştiriyoruz
+    html = "<style>"
+    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-bottom: 20px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }"
+    html += ".ozel-tablo th { background-color: #002266; color: white; text-align: left; padding: 8px; font-size: 13px; border: 1px solid #004d99; }"
+    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266; }"
+    html += ".ozel-tablo tr:nth-child(even) { background-color: #f8fbff; }"
+    html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
+    html += "</style>"
+    html += "<table class='ozel-tablo'>"
+    html += "<thead><tr><th class='sira-sutunu'>Sıra</th><th>OLUKLU MUKAVVA</th><th>ESNEK AMBALAJ</th></tr></thead><tbody>"
+    
     for index, row in df.iterrows():
-        html += f"""
-            <tr>
-                <td class="sira-sutunu">{row['SIRA']}</td>
-                <td>{row['OLUKLU MUKAVVA']}</td>
-                <td>{row['ESNEK AMBALAJ']}</td>
-            </tr>
-        """
+        html += f"<tr><td class='sira-sutunu'>{row['SIRA']}</td><td>{row['OLUKLU MUKAVVA']}</td><td>{row['ESNEK AMBALAJ']}</td></tr>"
+        
     html += "</tbody></table>"
     return html
 
@@ -124,7 +88,6 @@ if panes_list:
     
     for idx, pane_df in enumerate(panes_list):
         with st_cols[idx]:
-            # Standart Streamlit tablosu yerine kendi çizdiğimiz HTML tabloyu ekrana basıyoruz
             st.markdown(ozel_tablo_ciz(pane_df), unsafe_allow_html=True)
 else:
     st.warning("Veriler şu an yüklenemedi veya liste boş. Lütfen E-tablo bağlantısını kontrol ediniz.")
