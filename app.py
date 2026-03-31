@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import requests
+import io
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
@@ -38,13 +40,23 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VERİ ÇEKME MOTORU (Satır kaymalarına karşı korumalı) ---
-@st.cache_data(ttl=120) # Güncellemeleri daha hızlı görmek için süreyi 2 dakikaya indirdim
+# --- AKILLI VE GÜVENLİ VERİ ÇEKME MOTORU (HTTP 400 Korumalı) ---
+@st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=90150185&single=true&output=csv"
     try:
-        # Tüm tabloyu başlık olmadan ham haliyle oku
-        df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
+        # Google'ın bizi engellememesi için kendimizi normal bir internet tarayıcısı (Chrome) gibi tanıtıyoruz
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        # Veriyi güvenli yoldan indiriyoruz
+        response = requests.get(url, headers=headers)
+        response.raise_for_status() # Eğer hala hata varsa yakala
+        
+        # İndirilen veriyi bellekte Pandas'a okutuyoruz
+        csv_data = io.StringIO(response.text)
+        df_raw = pd.read_csv(csv_data, header=None, on_bad_lines='skip') 
         
         # SIRA kelimesinin hangi satırda olduğunu otomatik bul (Akıllı Radar)
         header_idx = -1
@@ -59,7 +71,7 @@ def veri_getir_ve_isle():
             df_raw.columns = df_raw.iloc[header_idx]
             df_raw = df_raw.iloc[header_idx+1:].reset_index(drop=True)
         else:
-            return [], "Tabloda 'SIRA' veya 'Sıra' başlığı bulunamadı."
+            return [], "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
         
         panes = []
         sira_indices = [i for i, col in enumerate(df_raw.columns) if 'SIRA' in str(col).upper()]
@@ -78,8 +90,10 @@ def veri_getir_ve_isle():
                     panes.append(pane)
                     
         return panes, None
+    except requests.exceptions.HTTPError as err:
+        return [], f"Google Sunucu Hatası: {err}"
     except Exception as e:
-        return [], str(e)
+        return [], f"Sistem Hatası: {str(e)}"
 
 panes_list, hata_mesaji = veri_getir_ve_isle()
 
@@ -111,9 +125,8 @@ if panes_list:
         with st_cols[idx]:
             st.markdown(ozel_tablo_ciz(pane_df), unsafe_allow_html=True)
 else:
-    # Hata varsa artık sadece "Liste Boş" demeyecek, hatanın ne olduğunu kırmızı kutuda yazacak
     if hata_mesaji:
-        st.error(f"Sistem Hatası: {hata_mesaji}")
+        st.error(hata_mesaji)
     else:
         st.warning("Veriler şu an yüklenemedi veya liste boş. Lütfen E-tablo bağlantısını kontrol ediniz.")
 
