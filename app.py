@@ -38,13 +38,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VE GÜVENLİ VERİ ÇEKME MOTORU (Pandas'ın Kendi Gücüyle) ---
+# --- AKILLI VE GÜVENLİ VERİ ÇEKME MOTORU ---
 @st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
-    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=90150185&single=true&output=csv"
+    # YENİ VE DOĞRU LİNK BURAYA EKLENDİ (gid=374780490)
+    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
     try:
-        # Pandas, Google linklerini okuma konusunda kendi başına bir uzmandır. 
-        # requests vs. kullanmadan doğrudan okumasını istiyoruz.
         df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
         
         # SIRA kelimesinin hangi satırda olduğunu otomatik bul (Akıllı Radar)
@@ -80,7 +79,7 @@ def veri_getir_ve_isle():
                     
         return panes, None
     except Exception as e:
-        return [], f"Sistem Hatası: {str(e)}"
+        return [], f"Sistem Hatası: Bağlantı kurulamadı veya dosya bulunamadı. Detay: {str(e)}"
 
 panes_list, hata_mesaji = veri_getir_ve_isle()
 
