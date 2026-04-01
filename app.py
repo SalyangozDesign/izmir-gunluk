@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import re
+import time # Google'ın önbelleğini kırmak için eklendi
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
@@ -39,14 +40,16 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- ORİJİNAL DÜZEN + GÜVENLİ D SÜTUNU MOTORU ---
-@st.cache_data(ttl=120) 
+# --- AKILLI VE GOOGLE CACHE KIRICI MOTOR ---
+@st.cache_data(ttl=60) # Güncelleme süresini 1 dakikaya indirdik!
 def veri_getir_ve_isle():
-    url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
+    # Google'ın 5 dakikalık "Hayalet Veri" inadını kırmak için linkin sonuna her saniye değişen bir zaman damgası ekliyoruz!
+    zaman_damgasi = int(time.time())
+    url = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv&_={zaman_damgasi}"
+    
     try:
         df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
         
-        # SIRA kelimesinin hangi satırda olduğunu bul
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             row_str = str(df_raw.iloc[i, 0]).upper()
@@ -55,13 +58,11 @@ def veri_getir_ve_isle():
                 break
                 
         if header_idx != -1:
-            # Sadece ilk 6 sütunu (A,B,C,D,E,F) alıyoruz. Sağdaki DB (Veritabanı) çöpünden tamamen kurtulduk!
             max_cols = min(6, len(df_raw.columns))
             df_subset = df_raw.iloc[header_idx : header_idx+45, 0:max_cols].copy()
             
             raw_headers = df_subset.iloc[0].astype(str).tolist()
             
-            # Başlık birleştirmeyi (Merge) kopyala
             clean_headers = []
             last_val = "SUTUN"
             for h in raw_headers:
@@ -72,7 +73,6 @@ def veri_getir_ve_isle():
                     clean_headers.append(h_clean)
                     last_val = h_clean
                     
-            # Başlıkları benzersiz yap (Örn: ESNEK AMBALAJ_2)
             unique_headers = []
             counts = {}
             for h in clean_headers:
@@ -86,20 +86,18 @@ def veri_getir_ve_isle():
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # SIRA sütununu bul, 1'den 40'a kadar sınırla ve boşları sil
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
             df_data = df_data.dropna(subset=[sira_col])
             df_data[sira_col] = df_data[sira_col].astype(int)
             
-            # İçi tamamen boş olan yan sütunları (Örn E, F sütununda iş yoksa) tablodan at
+            # GİZLİ BOŞLUK KORUMASI EKLENDİ (.str.strip())
             cols_to_keep = []
             for col in df_data.columns:
                 if 'SIRA' in col.upper():
                     cols_to_keep.append(col)
                 else:
-                    # Sütunda geçerli bir iş var mı?
-                    is_valid = df_data[col].astype(str).replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
+                    is_valid = df_data[col].astype(str).str.strip().replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
                     if is_valid:
                         cols_to_keep.append(col)
             
@@ -112,7 +110,7 @@ def veri_getir_ve_isle():
 
 df_liste, hata_mesaji = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (Yan Yana Orijinal Düzen) ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU ---
 def ozel_tablo_ciz(df):
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
@@ -126,7 +124,6 @@ def ozel_tablo_ciz(df):
     
     html += "<thead><tr>"
     for col in df.columns:
-        # Kodun arkasında çalışan _2, _3 gibi numaraları gizleyip başlığı orijinal haliyle (ESNEK AMBALAJ) basıyoruz
         display_name = re.sub(r'_\d+$', '', col)
         if 'SIRA' in display_name.upper():
             html += f"<th class='sira-sutunu'>Sıra</th>"
