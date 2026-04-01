@@ -39,27 +39,27 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VE DİNAMİK VERİ ÇEKME MOTORU ---
+# --- AKILLI VE SINIRLANDIRILMIŞ VERİ ÇEKME MOTORU ---
 @st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
-    # Doğru ve Güncel GID Numaralı Linkiniz
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
     try:
         df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
         
-        # SIRA kelimesinin hangi satırda olduğunu otomatik bul (Akıllı Radar)
+        # SIRA kelimesinin hangi satırda olduğunu otomatik bul
         header_idx = -1
         for i in range(min(15, len(df_raw))):
-            row_str = " ".join(df_raw.iloc[i].astype(str)).upper()
+            row_str = str(df_raw.iloc[i, 0]).upper() # Sadece A sütununa (indeks 0) bakıyoruz
             if "SIRA" in row_str:
                 header_idx = i
                 break
                 
         if header_idx != -1:
-            raw_headers = df_raw.iloc[header_idx].astype(str).tolist()
+            # 1. KURAL: Tabloyu sonsuzluğa uzatmamak için sadece SIRA ve yanındaki 5 sütuna (A'dan F'ye kadar) bak!
+            max_cols = min(6, len(df_raw.columns))
+            raw_headers = df_raw.iloc[header_idx, 0:max_cols].astype(str).tolist()
             
-            # Excel'deki birleştirilmiş (merged) hücreleri CSV'de tespit edip sağa doğru dolduruyoruz (Forward-Fill)
-            # Bu sayede D sütununa "ESNEK AMBALAJ" başlığı otomatik kopyalanır.
+            # Excel'deki birleştirilmiş (merged) hücreleri tespit edip sağa kopyalıyoruz
             clean_headers = []
             last_val = ""
             for h in raw_headers:
@@ -70,7 +70,7 @@ def veri_getir_ve_isle():
                     clean_headers.append(h_clean)
                     last_val = h_clean
             
-            # Pandas aynı isimde sütunları sevmediği için geçici olarak numaralandırıyoruz (Örn: ESNEK AMBALAJ_1)
+            # Aynı isimde olanlara numara veriyoruz (ESNEK AMBALAJ_2 gibi)
             unique_headers = []
             counts = {}
             for h in clean_headers:
@@ -81,23 +81,33 @@ def veri_getir_ve_isle():
                     counts[h] += 1
                     unique_headers.append(f"{h}_{counts[h]}")
                 else:
-                    counts[h] = 0
+                    counts[h] = 1
                     unique_headers.append(h)
                     
-            df_raw.columns = unique_headers
-            df = df_raw.iloc[header_idx+1:].reset_index(drop=True)
+            # 40 Sıra No limiti için sadece alttaki 45 satırı okuyoruz
+            df = df_raw.iloc[header_idx+1 : header_idx+45, 0:max_cols].copy()
+            df.columns = unique_headers
             
-            # Sadece başlığı SIRA, OLUKLU veya ESNEK olan tüm sütunları (sınır olmaksızın) tut
-            cols_to_keep = [c for c in df.columns if any(k in c.upper() for k in ['SIRA', 'OLUKLU', 'ESNEK'])]
-            df = df[cols_to_keep]
-            
-            # Sıra sütununu bul ve boş satırları temizle
+            # SIRA sütununu tamsayı yap ve geçersiz (boş) satırları sil (Sadece 1'den 40'a kadar olanlar kalır)
             sira_col = [c for c in df.columns if 'SIRA' in c.upper()][0]
             df[sira_col] = pd.to_numeric(df[sira_col], errors='coerce')
             df = df.dropna(subset=[sira_col])
             df[sira_col] = df[sira_col].astype(int)
             df = df.fillna('')
             
+            # 2. KURAL: Yana açılan sütunların (Örn: ESNEK AMBALAJ_2) içi TOPTAN BOŞSA o sütunu sil.
+            cols_to_keep = []
+            for col in df.columns:
+                if 'GIZLI' in col.upper():
+                    continue
+                if 'SIRA' in col.upper():
+                    cols_to_keep.append(col)
+                else:
+                    # Sütunun içinde harf/sayı var mı diye kontrol et
+                    if df[col].astype(str).str.strip().replace('', pd.NA).notna().any():
+                        cols_to_keep.append(col)
+                        
+            df = df[cols_to_keep]
             return df, None
         else:
             return pd.DataFrame(), "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
@@ -120,7 +130,7 @@ def ozel_tablo_ciz(df):
     
     html += "<thead><tr>"
     for col in df.columns:
-        # Geçici olarak eklediğimiz "ESNEK AMBALAJ_1" gibi takıları silerek orijinal başlığı (Örn: ESNEK AMBALAJ) göster
+        # Geçici olarak eklediğimiz "_2" gibi sayıları gizleyerek, sütunun orijinal ismini (ESNEK AMBALAJ) yazıyoruz
         display_name = re.sub(r'_\d+$', '', col)
         if 'SIRA' in display_name.upper():
             html += f"<th class='sira-sutunu'>Sıra</th>"
