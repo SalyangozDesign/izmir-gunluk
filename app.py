@@ -38,7 +38,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI, TOPLAYICI (ALT ALTA EKLEYİCİ) VERİ MOTORU ---
+# --- AKILLI, TOPLAYICI VE ÇOKLU SÜTUN KORUMALI VERİ MOTORU ---
 @st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
@@ -54,7 +54,7 @@ def veri_getir_ve_isle():
                 break
                 
         if header_idx != -1:
-            # Başlıkları sağa doğru kopyalayarak doldur (Merge hücreleri CSV'de çözmek için)
+            # Excel'deki birleştirilmiş (merged) hücreleri CSV'de sağa kopyalayarak dolduruyoruz
             raw_headers = df_raw.iloc[header_idx].astype(str).tolist()
             clean_headers = []
             last_val = "GIZLI"
@@ -66,35 +66,49 @@ def veri_getir_ve_isle():
                     clean_headers.append(h_clean)
                     last_val = h_clean
             
-            df_raw.columns = clean_headers
+            # DataFrame str hatasını önlemek için aynı isimli sütunları benzersiz yapıyoruz (Esnek_1, Esnek_2 gibi)
+            unique_headers = []
+            counts = {}
+            for h in clean_headers:
+                if h in counts:
+                    counts[h] += 1
+                    unique_headers.append(f"{h}_{counts[h]}")
+                else:
+                    counts[h] = 1
+                    unique_headers.append(h)
+                    
+            df_raw.columns = unique_headers
+            
             # Sadece veri olan satırları al (Alt boşlukları sil)
             df_data = df_raw.iloc[header_idx+1 : header_idx+100].copy()
             
-            # 1. OLUKLU MUKAVVA KÜMESİNİ TOPLA (Yana taşmış sütunlar varsa alt alta ekler)
+            # 1. OLUKLU MUKAVVA KÜMESİNİ TOPLA
             oluklu_cols = [c for c in df_data.columns if 'OLUKLU' in c]
             oluklu_items = []
             for col in oluklu_cols:
+                # Sütunlar benzersiz olduğu için Series olarak güvenle işliyoruz
                 items = df_data[col].astype(str).str.strip().tolist()
-                oluklu_items.extend([x for x in items if x != '' and x != 'NAN'])
+                oluklu_items.extend([x for x in items if x != '' and x != 'NAN' and x != 'NONE'])
                 
-            # 2. ESNEK AMBALAJ KÜMESİNİ TOPLA (40'ı geçip yana taşmış işleri alt alta ekler)
+            # 2. ESNEK AMBALAJ KÜMESİNİ TOPLA
             esnek_cols = [c for c in df_data.columns if 'ESNEK' in c]
             esnek_items = []
             for col in esnek_cols:
+                # 40'ı geçip yana taşmış işleri de tek tek okuyup ana listeye ekler
                 items = df_data[col].astype(str).str.strip().tolist()
-                esnek_items.extend([x for x in items if x != '' and x != 'NAN'])
+                esnek_items.extend([x for x in items if x != '' and x != 'NAN' and x != 'NONE'])
             
-            # En uzun sütunu bul (Örn: Oluklu 20, Esnek 45 ise maksimum satır sayısı 45 olur)
+            # En uzun sütunu bul 
             max_len = max(len(oluklu_items), len(esnek_items))
             
             if max_len == 0:
                 return pd.DataFrame(), "Bugün için girilmiş bir iş bulunmuyor."
             
-            # Listelerin boyunu eşitlemek için kısa olana boşluk ekle (Yan yana düzgün durması için)
+            # Listelerin boyunu eşitlemek için kısa olana boşluk ekle
             oluklu_items.extend([''] * (max_len - len(oluklu_items)))
             esnek_items.extend([''] * (max_len - len(esnek_items)))
             
-            # TERTEMİZ, TEK PARÇA SÜTUNUMUZU OLUŞTURUYORUZ (41, 42, 43... devam eder)
+            # TERTEMİZ, TEK PARÇA SÜTUNUMUZU OLUŞTURUYORUZ (41, 42, 43... sonsuza gider)
             df_final = pd.DataFrame({
                 'SIRA': range(1, max_len + 1),
                 'OLUKLU MUKAVVA': oluklu_items,
@@ -121,10 +135,9 @@ def ozel_tablo_ciz(df):
     html += "</style>"
     html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
     
-    # Sadece 3 Başlık: SIRA, OLUKLU, ESNEK
+    # Ekranda Her Zaman Sadece 3 Başlık Olacak: SIRA, OLUKLU, ESNEK
     html += "<thead><tr><th class='sira-sutunu'>Sıra</th><th>OLUKLU MUKAVVA</th><th>ESNEK AMBALAJ</th></tr></thead><tbody>"
     
-    # Alt alta sonsuza kadar giden veriler
     for index, row in df.iterrows():
         html += f"<tr><td class='sira-sutunu'>{row['SIRA']}</td><td>{row['OLUKLU MUKAVVA']}</td><td>{row['ESNEK AMBALAJ']}</td></tr>"
         
