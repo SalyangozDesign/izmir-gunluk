@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import re
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
@@ -38,10 +39,10 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VE GÜVENLİ VERİ ÇEKME MOTORU ---
+# --- AKILLI VE DİNAMİK VERİ ÇEKME MOTORU ---
 @st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
-    # YENİ VE DOĞRU LİNK BURAYA EKLENDİ (gid=374780490)
+    # Doğru ve Güncel GID Numaralı Linkiniz
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
     try:
         df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
@@ -54,36 +55,58 @@ def veri_getir_ve_isle():
                 header_idx = i
                 break
                 
-        # Eğer SIRA satırı bulunduysa, o satırı başlık yap
         if header_idx != -1:
-            df_raw.columns = df_raw.iloc[header_idx]
-            df_raw = df_raw.iloc[header_idx+1:].reset_index(drop=True)
-        else:
-            return [], "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
-        
-        panes = []
-        sira_indices = [i for i, col in enumerate(df_raw.columns) if 'SIRA' in str(col).upper()]
-        
-        for idx in sira_indices:
-            if idx + 2 < len(df_raw.columns):
-                pane = df_raw.iloc[:, idx : idx + 3].copy()
-                pane.columns = ['SIRA', 'OLUKLU MUKAVVA', 'ESNEK AMBALAJ']
-                
-                pane['SIRA'] = pd.to_numeric(pane['SIRA'], errors='coerce')
-                pane = pane.dropna(subset=['SIRA'])
-                pane['SIRA'] = pane['SIRA'].astype(int)
-                pane = pane.fillna('')
-                
-                if not pane.empty:
-                    panes.append(pane)
+            raw_headers = df_raw.iloc[header_idx].astype(str).tolist()
+            
+            # Excel'deki birleştirilmiş (merged) hücreleri CSV'de tespit edip sağa doğru dolduruyoruz (Forward-Fill)
+            # Bu sayede D sütununa "ESNEK AMBALAJ" başlığı otomatik kopyalanır.
+            clean_headers = []
+            last_val = ""
+            for h in raw_headers:
+                h_clean = h.strip()
+                if h_clean.upper() in ["NAN", "NONE", ""]:
+                    clean_headers.append(last_val)
+                else:
+                    clean_headers.append(h_clean)
+                    last_val = h_clean
+            
+            # Pandas aynı isimde sütunları sevmediği için geçici olarak numaralandırıyoruz (Örn: ESNEK AMBALAJ_1)
+            unique_headers = []
+            counts = {}
+            for h in clean_headers:
+                if h == "":
+                    unique_headers.append("GIZLI")
+                    continue
+                if h in counts:
+                    counts[h] += 1
+                    unique_headers.append(f"{h}_{counts[h]}")
+                else:
+                    counts[h] = 0
+                    unique_headers.append(h)
                     
-        return panes, None
+            df_raw.columns = unique_headers
+            df = df_raw.iloc[header_idx+1:].reset_index(drop=True)
+            
+            # Sadece başlığı SIRA, OLUKLU veya ESNEK olan tüm sütunları (sınır olmaksızın) tut
+            cols_to_keep = [c for c in df.columns if any(k in c.upper() for k in ['SIRA', 'OLUKLU', 'ESNEK'])]
+            df = df[cols_to_keep]
+            
+            # Sıra sütununu bul ve boş satırları temizle
+            sira_col = [c for c in df.columns if 'SIRA' in c.upper()][0]
+            df[sira_col] = pd.to_numeric(df[sira_col], errors='coerce')
+            df = df.dropna(subset=[sira_col])
+            df[sira_col] = df[sira_col].astype(int)
+            df = df.fillna('')
+            
+            return df, None
+        else:
+            return pd.DataFrame(), "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
     except Exception as e:
-        return [], f"Sistem Hatası: Bağlantı kurulamadı veya dosya bulunamadı. Detay: {str(e)}"
+        return pd.DataFrame(), f"Sistem Hatası: Bağlantı kurulamadı veya dosya bulunamadı. Detay: {str(e)}"
 
-panes_list, hata_mesaji = veri_getir_ve_isle()
+df_liste, hata_mesaji = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (Dark Mode + Mobil Korumalı) ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU (Tam Dinamik) ---
 def ozel_tablo_ciz(df):
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
@@ -94,22 +117,32 @@ def ozel_tablo_ciz(df):
     html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
     html += "</style>"
     html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
-    html += "<thead><tr><th class='sira-sutunu'>Sıra</th><th>OLUKLU MUKAVVA</th><th>ESNEK AMBALAJ</th></tr></thead><tbody>"
+    
+    html += "<thead><tr>"
+    for col in df.columns:
+        # Geçici olarak eklediğimiz "ESNEK AMBALAJ_1" gibi takıları silerek orijinal başlığı (Örn: ESNEK AMBALAJ) göster
+        display_name = re.sub(r'_\d+$', '', col)
+        if 'SIRA' in display_name.upper():
+            html += f"<th class='sira-sutunu'>Sıra</th>"
+        else:
+            html += f"<th>{display_name}</th>"
+    html += "</tr></thead><tbody>"
     
     for index, row in df.iterrows():
-        html += f"<tr><td class='sira-sutunu'>{row['SIRA']}</td><td>{row['OLUKLU MUKAVVA']}</td><td>{row['ESNEK AMBALAJ']}</td></tr>"
+        html += "<tr>"
+        for col in df.columns:
+            if 'SIRA' in col.upper():
+                html += f"<td class='sira-sutunu'>{row[col]}</td>"
+            else:
+                html += f"<td>{row[col]}</td>"
+        html += "</tr>"
         
     html += "</tbody></table></div>"
     return html
 
 # --- GÖSTERİM ---
-if panes_list:
-    num_panes = len(panes_list)
-    st_cols = st.columns(num_panes)
-    
-    for idx, pane_df in enumerate(panes_list):
-        with st_cols[idx]:
-            st.markdown(ozel_tablo_ciz(pane_df), unsafe_allow_html=True)
+if not df_liste.empty:
+    st.markdown(ozel_tablo_ciz(df_liste), unsafe_allow_html=True)
 else:
     if hata_mesaji:
         st.error(hata_mesaji)
