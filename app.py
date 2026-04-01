@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import re
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
@@ -38,26 +39,31 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI, TOPLAYICI VE ÇOKLU SÜTUN KORUMALI VERİ MOTORU ---
+# --- ORİJİNAL DÜZEN + GÜVENLİ D SÜTUNU MOTORU ---
 @st.cache_data(ttl=120) 
 def veri_getir_ve_isle():
     url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
     try:
         df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
         
-        # SIRA kelimesinin hangi satırda olduğunu otomatik bul
+        # SIRA kelimesinin hangi satırda olduğunu bul
         header_idx = -1
         for i in range(min(15, len(df_raw))):
-            row_str = " ".join(df_raw.iloc[i].astype(str)).upper()
-            if "SIRA" in row_str and ("OLUKLU" in row_str or "ESNEK" in row_str):
+            row_str = str(df_raw.iloc[i, 0]).upper()
+            if "SIRA" in row_str:
                 header_idx = i
                 break
                 
         if header_idx != -1:
-            # Excel'deki birleştirilmiş (merged) hücreleri CSV'de sağa kopyalayarak dolduruyoruz
-            raw_headers = df_raw.iloc[header_idx].astype(str).tolist()
+            # Sadece ilk 6 sütunu (A,B,C,D,E,F) alıyoruz. Sağdaki DB (Veritabanı) çöpünden tamamen kurtulduk!
+            max_cols = min(6, len(df_raw.columns))
+            df_subset = df_raw.iloc[header_idx : header_idx+45, 0:max_cols].copy()
+            
+            raw_headers = df_subset.iloc[0].astype(str).tolist()
+            
+            # Başlık birleştirmeyi (Merge) kopyala
             clean_headers = []
-            last_val = "GIZLI"
+            last_val = "SUTUN"
             for h in raw_headers:
                 h_clean = h.strip().upper()
                 if h_clean in ["NAN", "NONE", ""]:
@@ -65,8 +71,8 @@ def veri_getir_ve_isle():
                 else:
                     clean_headers.append(h_clean)
                     last_val = h_clean
-            
-            # DataFrame str hatasını önlemek için aynı isimli sütunları benzersiz yapıyoruz (Esnek_1, Esnek_2 gibi)
+                    
+            # Başlıkları benzersiz yap (Örn: ESNEK AMBALAJ_2)
             unique_headers = []
             counts = {}
             for h in clean_headers:
@@ -76,45 +82,28 @@ def veri_getir_ve_isle():
                 else:
                     counts[h] = 1
                     unique_headers.append(h)
-                    
-            df_raw.columns = unique_headers
             
-            # Sadece veri olan satırları al (Alt boşlukları sil)
-            df_data = df_raw.iloc[header_idx+1 : header_idx+100].copy()
+            df_subset.columns = unique_headers
+            df_data = df_subset.iloc[1:].copy()
             
-            # 1. OLUKLU MUKAVVA KÜMESİNİ TOPLA
-            oluklu_cols = [c for c in df_data.columns if 'OLUKLU' in c]
-            oluklu_items = []
-            for col in oluklu_cols:
-                # Sütunlar benzersiz olduğu için Series olarak güvenle işliyoruz
-                items = df_data[col].astype(str).str.strip().tolist()
-                oluklu_items.extend([x for x in items if x != '' and x != 'NAN' and x != 'NONE'])
-                
-            # 2. ESNEK AMBALAJ KÜMESİNİ TOPLA
-            esnek_cols = [c for c in df_data.columns if 'ESNEK' in c]
-            esnek_items = []
-            for col in esnek_cols:
-                # 40'ı geçip yana taşmış işleri de tek tek okuyup ana listeye ekler
-                items = df_data[col].astype(str).str.strip().tolist()
-                esnek_items.extend([x for x in items if x != '' and x != 'NAN' and x != 'NONE'])
+            # SIRA sütununu bul, 1'den 40'a kadar sınırla ve boşları sil
+            sira_col = df_data.columns[0]
+            df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
+            df_data = df_data.dropna(subset=[sira_col])
+            df_data[sira_col] = df_data[sira_col].astype(int)
             
-            # En uzun sütunu bul 
-            max_len = max(len(oluklu_items), len(esnek_items))
+            # İçi tamamen boş olan yan sütunları (Örn E, F sütununda iş yoksa) tablodan at
+            cols_to_keep = []
+            for col in df_data.columns:
+                if 'SIRA' in col.upper():
+                    cols_to_keep.append(col)
+                else:
+                    # Sütunda geçerli bir iş var mı?
+                    is_valid = df_data[col].astype(str).replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
+                    if is_valid:
+                        cols_to_keep.append(col)
             
-            if max_len == 0:
-                return pd.DataFrame(), "Bugün için girilmiş bir iş bulunmuyor."
-            
-            # Listelerin boyunu eşitlemek için kısa olana boşluk ekle
-            oluklu_items.extend([''] * (max_len - len(oluklu_items)))
-            esnek_items.extend([''] * (max_len - len(esnek_items)))
-            
-            # TERTEMİZ, TEK PARÇA SÜTUNUMUZU OLUŞTURUYORUZ (41, 42, 43... sonsuza gider)
-            df_final = pd.DataFrame({
-                'SIRA': range(1, max_len + 1),
-                'OLUKLU MUKAVVA': oluklu_items,
-                'ESNEK AMBALAJ': esnek_items
-            })
-            
+            df_final = df_data[cols_to_keep].fillna('')
             return df_final, None
         else:
             return pd.DataFrame(), "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
@@ -123,7 +112,7 @@ def veri_getir_ve_isle():
 
 df_liste, hata_mesaji = veri_getir_ve_isle()
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU ---
+# --- ÖZEL HTML TABLO OLUŞTURUCU (Yan Yana Orijinal Düzen) ---
 def ozel_tablo_ciz(df):
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
@@ -135,11 +124,24 @@ def ozel_tablo_ciz(df):
     html += "</style>"
     html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
     
-    # Ekranda Her Zaman Sadece 3 Başlık Olacak: SIRA, OLUKLU, ESNEK
-    html += "<thead><tr><th class='sira-sutunu'>Sıra</th><th>OLUKLU MUKAVVA</th><th>ESNEK AMBALAJ</th></tr></thead><tbody>"
+    html += "<thead><tr>"
+    for col in df.columns:
+        # Kodun arkasında çalışan _2, _3 gibi numaraları gizleyip başlığı orijinal haliyle (ESNEK AMBALAJ) basıyoruz
+        display_name = re.sub(r'_\d+$', '', col)
+        if 'SIRA' in display_name.upper():
+            html += f"<th class='sira-sutunu'>Sıra</th>"
+        else:
+            html += f"<th>{display_name}</th>"
+    html += "</tr></thead><tbody>"
     
     for index, row in df.iterrows():
-        html += f"<tr><td class='sira-sutunu'>{row['SIRA']}</td><td>{row['OLUKLU MUKAVVA']}</td><td>{row['ESNEK AMBALAJ']}</td></tr>"
+        html += "<tr>"
+        for col in df.columns:
+            if 'SIRA' in col.upper():
+                html += f"<td class='sira-sutunu'>{row[col]}</td>"
+            else:
+                html += f"<td>{row[col]}</td>"
+        html += "</tr>"
         
     html += "</tbody></table></div>"
     return html
