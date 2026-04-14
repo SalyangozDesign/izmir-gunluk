@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import re
-import time # Google'ın önbelleğini kırmak için eklendi
+import time 
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
@@ -40,10 +40,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VE GOOGLE CACHE KIRICI MOTOR ---
-@st.cache_data(ttl=60) # Güncelleme süresini 1 dakikaya indirdik!
+# --- AKILLI, GOOGLE CACHE KIRICI VE FLOAT ZIRHLI MOTOR ---
+@st.cache_data(ttl=60) 
 def veri_getir_ve_isle():
-    # Google'ın 5 dakikalık "Hayalet Veri" inadını kırmak için linkin sonuna her saniye değişen bir zaman damgası ekliyoruz!
     zaman_damgasi = int(time.time())
     url = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv&_={zaman_damgasi}"
     
@@ -61,12 +60,13 @@ def veri_getir_ve_isle():
             max_cols = min(6, len(df_raw.columns))
             df_subset = df_raw.iloc[header_idx : header_idx+45, 0:max_cols].copy()
             
-            raw_headers = df_subset.iloc[0].astype(str).tolist()
+            raw_headers = df_subset.iloc[0].tolist()
             
             clean_headers = []
             last_val = "SUTUN"
             for h in raw_headers:
-                h_clean = h.strip().upper()
+                # 🛡️ FLOAT HATASI ZIRHI: Ne gelirse gelsin (sayı, boşluk) zorla METNE (str) çevir.
+                h_clean = str(h).strip().upper()
                 if h_clean in ["NAN", "NONE", ""]:
                     clean_headers.append(last_val)
                 else:
@@ -91,13 +91,14 @@ def veri_getir_ve_isle():
             df_data = df_data.dropna(subset=[sira_col])
             df_data[sira_col] = df_data[sira_col].astype(int)
             
-            # GİZLİ BOŞLUK KORUMASI EKLENDİ (.str.strip())
+            # GİZLİ BOŞLUK KORUMASI VE FLOAT ZIRHI
             cols_to_keep = []
             for col in df_data.columns:
                 if 'SIRA' in col.upper():
                     cols_to_keep.append(col)
                 else:
-                    is_valid = df_data[col].astype(str).str.strip().replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
+                    # 🛡️ İkinci Zırh: Hücrenin içi tamamen rakam olsa bile zorla string'e çevirip kontrol et.
+                    is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
                     if is_valid:
                         cols_to_keep.append(col)
             
