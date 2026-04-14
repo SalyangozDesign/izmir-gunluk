@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import datetime
 import re
@@ -7,21 +8,16 @@ import time
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
-# GÖRSEL TEMİZLİK VE MODAL (POP-UP) EKRANININ SİHRİ!
 st.markdown("""
     <style>
-    /* Zorunlu Light Mode */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
-    
     [data-testid="stBottom"], [data-testid="stToolbar"] {display: none !important;}
     .viewerBadge_container__1QSob, .stAppDeployButton {display: none !important;}
-    button[title="View fullscreen"] {display: none !important;}
     
-    /* Sekme Başlıkları */
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         font-size: 18px !important; font-weight: bold !important;
     }
@@ -29,13 +25,6 @@ st.markdown("""
         color: #ff0000 !important;
     }
     </style>
-    
-    <div id="imgModal" onclick="document.getElementById('imgModal').style.display='none'; document.getElementById('modalIframe').src='';" style="display:none; position:fixed; z-index:999999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.85); align-items:center; justify-content:center; backdrop-filter: blur(5px); cursor:pointer;">
-        <div onclick="event.stopPropagation();" style="position:relative; width:90%; height:90%; max-width:1200px; background:#fff; border-radius:8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding:10px; cursor:default;">
-            <span onclick="document.getElementById('imgModal').style.display='none'; document.getElementById('modalIframe').src='';" style="position:absolute; top:-15px; right:-15px; background:#e74c3c; color:white; border-radius:50%; width:36px; height:36px; text-align:center; line-height:34px; cursor:pointer; font-weight:bold; font-size:24px; box-shadow:0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition:0.2s;">&times;</span>
-            <iframe id="modalIframe" src="" style="width:100%; height:100%; border:none; border-radius:4px;"></iframe>
-        </div>
-    </div>
 """, unsafe_allow_html=True)
 
 # --- TARİH VE GÜN AYARI ---
@@ -52,7 +41,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VERİ VE GİZLİ LİNK DEDEKTÖR MOTORU ---
+# --- AKILLI VERİ DEDEKTÖRÜ ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -62,22 +51,21 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # 1. GİZLİ LİNKLERİ TABLONUN ARKASINDAN (VERİTABANINDAN) ÇEKME VE EŞLEŞTİRME
+        # GİZLİ VERİTABANINDAN LİNKLERİ ÇEK (DB_OLUKLU_START vb.)
         for col_idx in range(len(df_raw.columns)):
             for row_idx in range(min(15, len(df_raw))):
                 val = str(df_raw.iloc[row_idx, col_idx]).strip()
                 if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
                     for r in range(row_idx + 1, len(df_raw)):
                         oid_raw = str(df_raw.iloc[r, col_idx]).strip()
-                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] # Float hatalarını engelle
+                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
                         
                         if col_idx + 5 < len(df_raw.columns):
                             gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
                             if oid_raw and gorsel_url.startswith("http"):
-                                # Iframe uyumluluğu için Google Drive link formatını düzenliyoruz
                                 url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
-        # 2. GÖRÜNÜR TABLOYU BULMA VE İŞLEME
+        # GÖRÜNÜR TABLOYU BUL
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             row_str = str(df_raw.iloc[i, 0]).upper()
@@ -105,7 +93,7 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # Eğer Acil listesindeysek Görsel linkleri GÖRSEL sütunundadır.
+            # ACİL LİSTESİ İÇİN GÖRSEL SÜTUNUNU OKU
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             if gorsel_col and oid_col:
@@ -123,10 +111,8 @@ def veri_getir_ve_isle(url):
             
             cols_to_keep = []
             for col in df_data.columns:
-                if 'GÖRSEL' in col.upper(): continue # Acil listesindeki görsel sütununu tamamen sil
-                
-                if 'SIRA' in col.upper():
-                    cols_to_keep.append(col)
+                if 'GÖRSEL' in col.upper(): continue 
+                if 'SIRA' in col.upper(): cols_to_keep.append(col)
                 else:
                     is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
                     if is_valid: cols_to_keep.append(col)
@@ -138,29 +124,77 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
-# --- LİNKLİ HTML TABLO OLUŞTURUCU ---
-def ozel_tablo_ciz(df, url_map):
-    renk_tema = "#004d99" 
-    kenar_renk = "#003366"
+# --- KUSURSUZ GÖRSEL ARAYÜZÜ (KUM HAVUZU HTML) ---
+def ozel_tablo_html_olustur(df, url_map, is_acil=False):
+    renk_tema = "#cc0000" if is_acil else "#004d99"
+    kenar_renk = "#a93226" if is_acil else "#003366"
     
-    html = "<style>"
-    html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
-    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; background-color: #ffffff !important; min-width: 800px; }"
-    html += f".ozel-tablo th {{ background-color: {renk_tema} !important; color: #ffffff !important; text-align: left; padding: 10px; font-size: 13px; border: 1px solid {kenar_renk}; }}"
-    html += ".ozel-tablo td { padding: 10px; border: 1px solid #e0e0e0; font-size: 13px; color: #000000 !important; background-color: #ffffff !important; word-wrap: break-word; }"
-    html += ".ozel-tablo tr:nth-child(even) td { background-color: #f9f9f9 !important; }"
-    html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+    body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #ffffff; }}
+    .tablo-sarmalayici {{ overflow-x: auto; width: 100%; padding-bottom: 20px; }}
+    .ozel-tablo {{ width: 100%; border-collapse: collapse; min-width: 800px; }}
+    .ozel-tablo th {{ background-color: {renk_tema}; color: #ffffff; text-align: left; padding: 12px; font-size: 14px; border: 1px solid {kenar_renk}; position: sticky; top: 0; z-index: 10; }}
+    .ozel-tablo td {{ padding: 12px; border: 1px solid #e0e0e0; font-size: 13px; color: #000000; word-wrap: break-word; vertical-align: middle; }}
+    .ozel-tablo tr:nth-child(even) td {{ background-color: #f9f9f9; }}
+    .ozel-tablo tr:hover td {{ background-color: #f1f7ff; }}
+    .sira-sutunu {{ width: 40px; text-align: center; font-weight: bold; }}
     
-    # 🖼️ İkon Butonu Tasarımı
-    html += ".gorsel-buton { float: right; cursor: pointer; text-decoration: none; font-size: 16px; padding: 2px 6px; background-color: #e6f0ff; border-radius: 4px; border: 1px solid #b3d1ff; transition: 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.1);}"
-    html += ".gorsel-buton:hover { background-color: #cce0ff; transform: scale(1.05); }"
-    html += "</style>"
+    /* DİKKAT ÇEKİCİ ANİMASYONLU BUTON */
+    .gorsel-buton {{ 
+        float: right; cursor: pointer; text-decoration: none; font-size: 12px; padding: 6px 12px; 
+        background: linear-gradient(135deg, #e74c3c, #c0392b); color: white !important; 
+        border-radius: 20px; border: none; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        transition: all 0.3s ease; animation: pulse 2s infinite; display: inline-flex; align-items: center; gap: 5px;
+    }}
+    .gorsel-buton:hover {{ transform: scale(1.1); box-shadow: 0 6px 12px rgba(0,0,0,0.3); background: linear-gradient(135deg, #c0392b, #a93226); }}
     
-    html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
-    html += "<thead><tr>"
+    @keyframes pulse {{
+        0% {{ box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }}
+        70% {{ box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }}
+        100% {{ box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }}
+    }}
+
+    /* SİNEMA MODU (AKORDİYON POP-UP) STİLİ */
+    .modal-overlay {{
+        display: none; position: fixed; z-index: 999999; left: 0; top: 0; width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+        align-items: center; justify-content: center; cursor: pointer;
+    }}
+    .modal-content {{
+        position: relative; width: 90%; height: 90%; max-width: 1200px; background: #fff; 
+        border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 10px; cursor: default;
+        animation: zoomIn 0.3s ease;
+    }}
+    @keyframes zoomIn {{ from {{ transform: scale(0.9); opacity: 0; }} to {{ transform: scale(1); opacity: 1; }} }}
+    .close-btn {{
+        position: absolute; top: -15px; right: -15px; background: #e74c3c; color: white; border-radius: 50%; 
+        width: 36px; height: 36px; text-align: center; line-height: 34px; cursor: pointer; 
+        font-weight: bold; font-size: 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition: 0.2s;
+    }}
+    .close-btn:hover {{ background: #c0392b; transform: scale(1.1); }}
+    </style>
+    </head>
+    <body>
+    
+    <div id="imgModal" class="modal-overlay" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation();">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <iframe id="modalIframe" src="" style="width:100%; height:100%; border:none; border-radius:4px;"></iframe>
+        </div>
+    </div>
+
+    <div class='tablo-sarmalayici'>
+    <table class='ozel-tablo'>
+    <thead><tr>
+    """
+    
     for col in df.columns:
         display_name = re.sub(r'_\d+$', '', col)
-        if 'SIRA' in display_name.upper(): html += f"<th class='sira-sutunu'>Sıra</th>"
+        if 'SIRA' in display_name.upper(): html += "<th class='sira-sutunu'>Sıra</th>"
         else: html += f"<th>{display_name}</th>"
     html += "</tr></thead><tbody>"
     
@@ -171,20 +205,34 @@ def ozel_tablo_ciz(df, url_map):
             if 'SIRA' in col.upper():
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
-                # SİSTEM HÜCREDE KENDİSİNE AİT BİR ORDER ID YAKALARSA BUTONU YAPIŞTIRIR
                 btn_html = ""
-                for oid, p_url in url_map.items():
-                    if oid and len(oid) >= 5 and oid in val:
-                        btn_html = f" <button onclick=\"document.getElementById('imgModal').style.display='flex'; document.getElementById('modalIframe').src='{p_url}';\" class='gorsel-buton' title='Görseli İncele'>🖼️</button>"
-                        break
+                match = re.search(r'^(\d{5,6})', val)
+                if match:
+                    oid = match.group(1)
+                    if oid in url_map:
+                        p_url = url_map[oid]
+                        btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
                 
                 html += f"<td>{val}{btn_html}</td>"
         html += "</tr>"
         
-    html += "</tbody></table></div>"
+    html += """
+    </tbody></table></div>
+    <script>
+    function openModal(url) {
+        document.getElementById('modalIframe').src = url;
+        document.getElementById('imgModal').style.display = 'flex';
+    }
+    function closeModal() {
+        document.getElementById('imgModal').style.display = 'none';
+        document.getElementById('modalIframe').src = '';
+    }
+    </script>
+    </body></html>
+    """
     return html
 
-# --- SEKMELER ---
+# --- SEKMELER VE COMPONENT RENDER (KUM HAVUZU) ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
@@ -193,7 +241,8 @@ t_gunluk, t_acil = st.tabs(["📋 Günlük Üretim Listesi", "🚨 Acil Üretim 
 with t_gunluk:
     df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
     if not df_g.empty:
-        st.markdown(ozel_tablo_ciz(df_g, url_g), unsafe_allow_html=True)
+        # Kodları Streamlit'in silmemesi için Kum Havuzu kullanıyoruz
+        components.html(ozel_tablo_html_olustur(df_g, url_g, False), height=850, scrolling=True)
     else:
         st.error(err_g) if err_g else st.warning("Günlük liste boş.")
 
@@ -201,7 +250,7 @@ with t_acil:
     st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
     df_a, url_a, err_a = veri_getir_ve_isle(acil_url)
     if not df_a.empty:
-        st.markdown(ozel_tablo_ciz(df_a, url_a), unsafe_allow_html=True)
+        components.html(ozel_tablo_html_olustur(df_a, url_a, True), height=850, scrolling=True)
     else:
         if err_a: st.error(err_a)
         else: st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
