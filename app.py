@@ -7,10 +7,10 @@ import time
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
-# GÖRSEL TEMİZLİK VE ZORUNLU LIGHT MODE EKLENTİSİ
+# GÖRSEL TEMİZLİK VE KURUMSAL TEMA (NAVY & RED HIGHLIGHT)
 st.markdown("""
     <style>
-    /* Zorunlu Light Mode (Siyah ekranı engeller) */
+    /* Zorunlu Light Mode */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
@@ -18,15 +18,19 @@ st.markdown("""
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
     
-    /* Streamlit Reklamlarını (Watermark) ve Butonlarını Agresif Gizleme */
+    /* Streamlit Gereksiz Öğeleri Gizleme */
     [data-testid="stBottom"], [data-testid="stToolbar"] {display: none !important;}
     .viewerBadge_container__1QSob, .stAppDeployButton {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
     
-    /* Sekme (Tab) Metinlerini Büyütme ve Renklendirme */
+    /* Sekme Başlıklarını Özelleştirme */
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         font-size: 18px !important;
         font-weight: bold !important;
+    }
+    /* Acil Sekmesini Kırmızı Yapma */
+    .stTabs [data-baseweb="tab-list"] button:nth-child(2) [data-testid="stMarkdownContainer"] p {
+        color: #ff0000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -46,7 +50,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI, GOOGLE CACHE KIRICI VE FLOAT ZIRHLI ORTAK MOTOR ---
+# --- AKILLI VERİ MOTORU (SEVK VE SAAT DESTEKLİ) ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -63,7 +67,8 @@ def veri_getir_ve_isle(url):
                 break
                 
         if header_idx != -1:
-            max_cols = min(6, len(df_raw.columns))
+            # G ve H sütunlarını (Sevk ve Saat) kapsamak için tarama sınırını 10 sütuna çıkardık
+            max_cols = min(10, len(df_raw.columns))
             df_subset = df_raw.iloc[header_idx : header_idx+45, 0:max_cols].copy()
             
             raw_headers = df_subset.iloc[0].tolist()
@@ -72,7 +77,7 @@ def veri_getir_ve_isle(url):
             last_val = "SUTUN"
             for h in raw_headers:
                 h_clean = str(h).strip().upper()
-                if h_clean in ["NAN", "NONE", ""]:
+                if h_clean in ["NAN", "NONE", "", "UNNAMED"]:
                     clean_headers.append(last_val)
                 else:
                     clean_headers.append(h_clean)
@@ -85,7 +90,7 @@ def veri_getir_ve_isle(url):
                     counts[h] += 1
                     unique_headers.append(f"{h}_{counts[h]}")
                 else:
-                    counts[h] = 1
+                    counts[h] = 0
                     unique_headers.append(h)
             
             df_subset.columns = unique_headers
@@ -96,11 +101,13 @@ def veri_getir_ve_isle(url):
             df_data = df_data.dropna(subset=[sira_col])
             df_data[sira_col] = df_data[sira_col].astype(int)
             
+            # Sütunları temizleme ve filtreleme
             cols_to_keep = []
             for col in df_data.columns:
                 if 'SIRA' in col.upper():
                     cols_to_keep.append(col)
                 else:
+                    # Hücrede gerçekten veri var mı kontrolü (Float zırhlı)
                     is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
                     if is_valid:
                         cols_to_keep.append(col)
@@ -108,20 +115,25 @@ def veri_getir_ve_isle(url):
             df_final = df_data[cols_to_keep].fillna('')
             return df_final, None
         else:
-            return pd.DataFrame(), "Tabloda 'SIRA' başlığı bulunamadı. Lütfen E-Tabloyu kontrol edin."
+            return pd.DataFrame(), "Tabloda 'SIRA' başlığı bulunamadı."
     except Exception as e:
-        return pd.DataFrame(), f"Sistem Hatası: Bağlantı kurulamadı veya dosya bulunamadı. Detay: {str(e)}"
+        return pd.DataFrame(), f"Bağlantı Hatası: {str(e)}"
 
-# --- ÖZEL HTML TABLO OLUŞTURUCU (RENK PARAMETRELİ) ---
-def ozel_tablo_ciz(df, renk_tema="#002266", kenar_renk="#004d99"):
+# --- HTML TABLO OLUŞTURUCU ---
+def ozel_tablo_ciz(df, acil_mod=False):
+    # Kurumsal Renkler (Dijital Klişe Mavi/Navy)
+    renk_tema = "#002266"
+    kenar_renk = "#004d99"
+    
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
-    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; box-shadow: 0 0 5px rgba(0,0,0,0.1); background-color: #ffffff !important; min-width: 600px; }"
-    html += f".ozel-tablo th {{ background-color: {renk_tema} !important; color: #ffffff !important; text-align: left; padding: 8px; font-size: 14px; border: 1px solid {kenar_renk}; }}"
-    html += f".ozel-tablo td {{ padding: 8px; border: 1px solid #e6e6e6; font-size: 13px; color: #000000 !important; background-color: #ffffff !important; word-wrap: break-word; word-break: break-word; }}"
-    html += ".ozel-tablo tr:nth-child(even) td { background-color: #f8fbff !important; }"
+    html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; background-color: #ffffff !important; min-width: 800px; }"
+    html += f".ozel-tablo th {{ background-color: {renk_tema} !important; color: #ffffff !important; text-align: left; padding: 10px; font-size: 13px; border: 1px solid {kenar_renk}; }}"
+    html += ".ozel-tablo td { padding: 10px; border: 1px solid #e0e0e0; font-size: 13px; color: #000000 !important; background-color: #ffffff !important; word-wrap: break-word; }"
+    html += ".ozel-tablo tr:nth-child(even) td { background-color: #f9f9f9 !important; }"
     html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
     html += "</style>"
+    
     html += "<div class='tablo-sarmalayici'><table class='ozel-tablo'>"
     
     html += "<thead><tr>"
@@ -133,44 +145,40 @@ def ozel_tablo_ciz(df, renk_tema="#002266", kenar_renk="#004d99"):
             html += f"<th>{display_name}</th>"
     html += "</tr></thead><tbody>"
     
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         html += "<tr>"
         for col in df.columns:
+            val = str(row[col])
             if 'SIRA' in col.upper():
-                html += f"<td class='sira-sutunu'>{row[col]}</td>"
+                html += f"<td class='sira-sutunu'>{val}</td>"
             else:
-                html += f"<td>{row[col]}</td>"
+                html += f"<td>{val}</td>"
         html += "</tr>"
         
     html += "</tbody></table></div>"
     return html
 
-# --- VERİ LİNKLERİ VE SEKMELER ---
+# --- SEKMELER ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
 t_gunluk, t_acil = st.tabs(["📋 Günlük Üretim Listesi", "🚨 Acil Üretim Listesi"])
 
 with t_gunluk:
-    df_gunluk, hata_gunluk = veri_getir_ve_isle(gunluk_url)
-    if not df_gunluk.empty:
-        st.markdown(ozel_tablo_ciz(df_gunluk, renk_tema="#002266", kenar_renk="#004d99"), unsafe_allow_html=True)
+    df_g, err_g = veri_getir_ve_isle(gunluk_url)
+    if not df_g.empty:
+        st.markdown(ozel_tablo_ciz(df_g), unsafe_allow_html=True)
     else:
-        if hata_gunluk:
-            st.error(hata_gunluk)
-        else:
-            st.warning("Veriler şu an yüklenemedi veya günlük liste boş.")
+        st.error(err_g) if err_g else st.warning("Günlük liste boş.")
 
 with t_acil:
-    df_acil, hata_acil = veri_getir_ve_isle(acil_url)
-    if not df_acil.empty:
-        # Acil listesi için koyu kırmızı (bordo) başlıklar
-        st.markdown(ozel_tablo_ciz(df_acil, renk_tema="#8b0000", kenar_renk="#b30000"), unsafe_allow_html=True)
+    # Sadece bu sekmedeki başlığı kırmızı yapıyoruz
+    st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
+    df_a, err_a = veri_getir_ve_isle(acil_url)
+    if not df_a.empty:
+        st.markdown(ozel_tablo_ciz(df_a, acil_mod=True), unsafe_allow_html=True)
     else:
-        if hata_acil:
-            st.error(hata_acil)
-        else:
-            st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
+        st.success("🎉 Şu an bekleyen acil iş bulunmuyor.")
 
 # --- ALT BİLGİ ---
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
