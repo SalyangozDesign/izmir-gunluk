@@ -22,6 +22,12 @@ st.markdown("""
     [data-testid="stBottom"], [data-testid="stToolbar"] {display: none !important;}
     .viewerBadge_container__1QSob, .stAppDeployButton {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
+    
+    /* Sekme (Tab) Metinlerini Büyütme ve Renklendirme */
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 18px !important;
+        font-weight: bold !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -33,21 +39,21 @@ tarih_str = bugun.strftime("%d.%m.%Y") + " " + gunler[bugun.weekday()]
 # --- ANA BAŞLIK ---
 st.markdown(f"""
 <div style="background-color: #004d99; padding: 15px; margin-bottom: 0px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-<h2 style='color: white; text-align: center; margin: 0px; font-size: 24px;'>📋 İZMİR ŞUBE OFİSİ ÜRETİM LİSTESİ</h2>
+<h2 style='color: white; text-align: center; margin: 0px; font-size: 24px;'>📋 İZMİR ŞUBE OFİSİ ÜRETİM LİSTELERİ</h2>
 </div>
 <div style="background-color: #e6f0ff; padding: 8px; margin-bottom: 20px; border-bottom: 2px solid #004d99; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;">
 <h4 style='color: #004d99; text-align: center; margin: 0px; font-size: 16px;'>{tarih_str}</h4>
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI, GOOGLE CACHE KIRICI VE FLOAT ZIRHLI MOTOR ---
+# --- AKILLI, GOOGLE CACHE KIRICI VE FLOAT ZIRHLI ORTAK MOTOR ---
 @st.cache_data(ttl=60) 
-def veri_getir_ve_isle():
+def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
-    url = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv&_={zaman_damgasi}"
+    safe_url = f"{url}&_={zaman_damgasi}" if "?" in url else f"{url}?_={zaman_damgasi}"
     
     try:
-        df_raw = pd.read_csv(url, header=None, on_bad_lines='skip') 
+        df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
         header_idx = -1
         for i in range(min(15, len(df_raw))):
@@ -65,7 +71,6 @@ def veri_getir_ve_isle():
             clean_headers = []
             last_val = "SUTUN"
             for h in raw_headers:
-                # 🛡️ FLOAT HATASI ZIRHI: Ne gelirse gelsin (sayı, boşluk) zorla METNE (str) çevir.
                 h_clean = str(h).strip().upper()
                 if h_clean in ["NAN", "NONE", ""]:
                     clean_headers.append(last_val)
@@ -91,13 +96,11 @@ def veri_getir_ve_isle():
             df_data = df_data.dropna(subset=[sira_col])
             df_data[sira_col] = df_data[sira_col].astype(int)
             
-            # GİZLİ BOŞLUK KORUMASI VE FLOAT ZIRHI
             cols_to_keep = []
             for col in df_data.columns:
                 if 'SIRA' in col.upper():
                     cols_to_keep.append(col)
                 else:
-                    # 🛡️ İkinci Zırh: Hücrenin içi tamamen rakam olsa bile zorla string'e çevirip kontrol et.
                     is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
                     if is_valid:
                         cols_to_keep.append(col)
@@ -109,15 +112,13 @@ def veri_getir_ve_isle():
     except Exception as e:
         return pd.DataFrame(), f"Sistem Hatası: Bağlantı kurulamadı veya dosya bulunamadı. Detay: {str(e)}"
 
-df_liste, hata_mesaji = veri_getir_ve_isle()
-
-# --- ÖZEL HTML TABLO OLUŞTURUCU ---
-def ozel_tablo_ciz(df):
+# --- ÖZEL HTML TABLO OLUŞTURUCU (RENK PARAMETRELİ) ---
+def ozel_tablo_ciz(df, renk_tema="#002266", kenar_renk="#004d99"):
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
     html += ".ozel-tablo { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; box-shadow: 0 0 5px rgba(0,0,0,0.1); background-color: #ffffff !important; min-width: 600px; }"
-    html += ".ozel-tablo th { background-color: #002266 !important; color: #ffffff !important; text-align: left; padding: 8px; font-size: 13px; border: 1px solid #004d99; }"
-    html += ".ozel-tablo td { padding: 8px; border: 1px solid #cce0ff; font-size: 13px; color: #002266 !important; background-color: #ffffff !important; word-wrap: break-word; word-break: break-word; }"
+    html += f".ozel-tablo th {{ background-color: {renk_tema} !important; color: #ffffff !important; text-align: left; padding: 8px; font-size: 14px; border: 1px solid {kenar_renk}; }}"
+    html += f".ozel-tablo td {{ padding: 8px; border: 1px solid #e6e6e6; font-size: 13px; color: #000000 !important; background-color: #ffffff !important; word-wrap: break-word; word-break: break-word; }}"
     html += ".ozel-tablo tr:nth-child(even) td { background-color: #f8fbff !important; }"
     html += ".sira-sutunu { width: 40px !important; text-align: center !important; font-weight: bold; }"
     html += "</style>"
@@ -144,14 +145,32 @@ def ozel_tablo_ciz(df):
     html += "</tbody></table></div>"
     return html
 
-# --- GÖSTERİM ---
-if not df_liste.empty:
-    st.markdown(ozel_tablo_ciz(df_liste), unsafe_allow_html=True)
-else:
-    if hata_mesaji:
-        st.error(hata_mesaji)
+# --- VERİ LİNKLERİ VE SEKMELER ---
+gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
+acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
+
+t_gunluk, t_acil = st.tabs(["📋 Günlük Üretim Listesi", "🚨 Acil Üretim Listesi"])
+
+with t_gunluk:
+    df_gunluk, hata_gunluk = veri_getir_ve_isle(gunluk_url)
+    if not df_gunluk.empty:
+        st.markdown(ozel_tablo_ciz(df_gunluk, renk_tema="#002266", kenar_renk="#004d99"), unsafe_allow_html=True)
     else:
-        st.warning("Veriler şu an yüklenemedi veya liste boş. Lütfen E-tablo bağlantısını kontrol ediniz.")
+        if hata_gunluk:
+            st.error(hata_gunluk)
+        else:
+            st.warning("Veriler şu an yüklenemedi veya günlük liste boş.")
+
+with t_acil:
+    df_acil, hata_acil = veri_getir_ve_isle(acil_url)
+    if not df_acil.empty:
+        # Acil listesi için koyu kırmızı (bordo) başlıklar
+        st.markdown(ozel_tablo_ciz(df_acil, renk_tema="#8b0000", kenar_renk="#b30000"), unsafe_allow_html=True)
+    else:
+        if hata_acil:
+            st.error(hata_acil)
+        else:
+            st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
 
 # --- ALT BİLGİ ---
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
