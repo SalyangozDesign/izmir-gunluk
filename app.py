@@ -7,7 +7,7 @@ import time
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
-# GÖRSEL TEMİZLİK VE MODAL (POP-UP) SİSTEMİ İÇİN CSS
+# GÖRSEL TEMİZLİK VE MODAL (POP-UP) EKRANININ SİHRİ!
 st.markdown("""
     <style>
     /* Zorunlu Light Mode */
@@ -30,8 +30,8 @@ st.markdown("""
     }
     </style>
     
-    <div id="imgModal" style="display:none; position:fixed; z-index:999999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.85); align-items:center; justify-content:center; backdrop-filter: blur(5px);">
-        <div style="position:relative; width:85%; height:85%; max-width:1000px; background:#fff; border-radius:8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding:10px;">
+    <div id="imgModal" onclick="document.getElementById('imgModal').style.display='none'; document.getElementById('modalIframe').src='';" style="display:none; position:fixed; z-index:999999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.85); align-items:center; justify-content:center; backdrop-filter: blur(5px); cursor:pointer;">
+        <div onclick="event.stopPropagation();" style="position:relative; width:90%; height:90%; max-width:1200px; background:#fff; border-radius:8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding:10px; cursor:default;">
             <span onclick="document.getElementById('imgModal').style.display='none'; document.getElementById('modalIframe').src='';" style="position:absolute; top:-15px; right:-15px; background:#e74c3c; color:white; border-radius:50%; width:36px; height:36px; text-align:center; line-height:34px; cursor:pointer; font-weight:bold; font-size:24px; box-shadow:0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition:0.2s;">&times;</span>
             <iframe id="modalIframe" src="" style="width:100%; height:100%; border:none; border-radius:4px;"></iframe>
         </div>
@@ -68,20 +68,21 @@ def veri_getir_ve_isle(url):
                 val = str(df_raw.iloc[row_idx, col_idx]).strip()
                 if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
                     for r in range(row_idx + 1, len(df_raw)):
-                        oid = str(df_raw.iloc[r, col_idx]).strip()
+                        oid_raw = str(df_raw.iloc[r, col_idx]).strip()
+                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] # Float hatalarını engelle
+                        
                         if col_idx + 5 < len(df_raw.columns):
                             gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
-                            if oid and gorsel_url.startswith("http"):
+                            if oid_raw and gorsel_url.startswith("http"):
                                 # Iframe uyumluluğu için Google Drive link formatını düzenliyoruz
-                                url_map[oid] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                                url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
         # 2. GÖRÜNÜR TABLOYU BULMA VE İŞLEME
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             row_str = str(df_raw.iloc[i, 0]).upper()
             if "SIRA" in row_str:
-                header_idx = i
-                break
+                header_idx = i; break
                 
         if header_idx != -1:
             max_cols = min(12, len(df_raw.columns))
@@ -104,15 +105,16 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # Eğer Acil listesindeysek Görsel linkleri GÖRSEL sütunundadır, onları map'e at ve o sütunu gizle.
+            # Eğer Acil listesindeysek Görsel linkleri GÖRSEL sütunundadır.
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             if gorsel_col and oid_col:
                 for r in range(len(df_data)):
-                    oid = str(df_data.iloc[r][oid_col]).strip()
+                    oid_raw = str(df_data.iloc[r][oid_col]).strip()
+                    if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2]
                     gorsel_url = str(df_data.iloc[r][gorsel_col]).strip()
-                    if oid and gorsel_url.startswith("http"):
-                        url_map[oid] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                    if oid_raw and gorsel_url.startswith("http"):
+                        url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
             
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
@@ -121,8 +123,7 @@ def veri_getir_ve_isle(url):
             
             cols_to_keep = []
             for col in df_data.columns:
-                # "GÖRSEL" sütununu ekranda çirkin durmaması için kasten SİLİYORUZ (Zaten butona basacağız)
-                if 'GÖRSEL' in col.upper(): continue 
+                if 'GÖRSEL' in col.upper(): continue # Acil listesindeki görsel sütununu tamamen sil
                 
                 if 'SIRA' in col.upper():
                     cols_to_keep.append(col)
@@ -170,15 +171,12 @@ def ozel_tablo_ciz(df, url_map):
             if 'SIRA' in col.upper():
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
-                # SİSTEM HÜCREDE ORDER ID YAKALARSA VE GÖRSELİ VARSA BUTON EKLER!
+                # SİSTEM HÜCREDE KENDİSİNE AİT BİR ORDER ID YAKALARSA BUTONU YAPIŞTIRIR
                 btn_html = ""
-                match = re.search(r'^(\d{5,6})', val)
-                if match:
-                    oid = match.group(1)
-                    if oid in url_map:
-                        # Akordiyon Modal ekranını tetikleyen sihirli komut
-                        p_url = url_map[oid]
-                        btn_html = f" <button onclick=\"document.getElementById('imgModal').style.display='flex'; document.getElementById('modalIframe').src='{p_url}';\" class='gorsel-buton' title='Görseli/Raporu İncele'>🖼️</button>"
+                for oid, p_url in url_map.items():
+                    if oid and len(oid) >= 5 and oid in val:
+                        btn_html = f" <button onclick=\"document.getElementById('imgModal').style.display='flex'; document.getElementById('modalIframe').src='{p_url}';\" class='gorsel-buton' title='Görseli İncele'>🖼️</button>"
+                        break
                 
                 html += f"<td>{val}{btn_html}</td>"
         html += "</tr>"
