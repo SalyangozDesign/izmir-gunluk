@@ -10,6 +10,7 @@ st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", la
 
 st.markdown("""
     <style>
+    /* Zorunlu Light Mode */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
     #MainMenu {visibility: hidden !important;}
@@ -17,7 +18,9 @@ st.markdown("""
     header {visibility: hidden !important;}
     [data-testid="stBottom"], [data-testid="stToolbar"] {display: none !important;}
     .viewerBadge_container__1QSob, .stAppDeployButton {display: none !important;}
+    button[title="View fullscreen"] {display: none !important;}
     
+    /* Sekme Başlıkları */
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         font-size: 18px !important; font-weight: bold !important;
     }
@@ -41,7 +44,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- AKILLI VERİ DEDEKTÖRÜ ---
+# --- KUSURSUZ GİZLİ LİNK DEDEKTÖRÜ ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -51,25 +54,30 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # GİZLİ VERİTABANINDAN LİNKLERİ ÇEK (DB_OLUKLU_START vb.)
-        for col_idx in range(len(df_raw.columns)):
-            for row_idx in range(min(15, len(df_raw))):
-                val = str(df_raw.iloc[row_idx, col_idx]).strip()
-                if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
-                    for r in range(row_idx + 1, len(df_raw)):
-                        oid_raw = str(df_raw.iloc[r, col_idx]).strip()
-                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
-                        
-                        if col_idx + 5 < len(df_raw.columns):
-                            gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
-                            if oid_raw and gorsel_url.startswith("http"):
-                                url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+        # SİHİRLİ RADAR: Kılavuz kelime aramadan satırdaki "http" ve "Order ID"yi eşleştirir.
+        for r in range(len(df_raw)):
+            row_vals = [str(x).strip() for x in df_raw.iloc[r].values]
+            url_val = None
+            for v in reversed(row_vals):
+                if v.startswith("http"):
+                    url_val = v
+                    break
+                    
+            if url_val:
+                oid_val = None
+                for v in row_vals:
+                    if re.match(r'^\d{5,6}(?:\.0)?$', v):
+                        oid_val = v.replace('.0', '')
+                        break
                 
+                if oid_val:
+                    # Google Drive linkini iframe (pop-up) içinde açılacak özel formata çevirir
+                    url_map[oid_val] = url_val.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                    
         # GÖRÜNÜR TABLOYU BUL
         header_idx = -1
         for i in range(min(15, len(df_raw))):
-            row_str = str(df_raw.iloc[i, 0]).upper()
-            if "SIRA" in row_str:
+            if "SIRA" in str(df_raw.iloc[i, 0]).upper():
                 header_idx = i; break
                 
         if header_idx != -1:
@@ -93,17 +101,6 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # ACİL LİSTESİ İÇİN GÖRSEL SÜTUNUNU OKU
-            gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
-            oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
-            if gorsel_col and oid_col:
-                for r in range(len(df_data)):
-                    oid_raw = str(df_data.iloc[r][oid_col]).strip()
-                    if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2]
-                    gorsel_url = str(df_data.iloc[r][gorsel_col]).strip()
-                    if oid_raw and gorsel_url.startswith("http"):
-                        url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-            
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
             df_data = df_data.dropna(subset=[sira_col])
@@ -111,7 +108,7 @@ def veri_getir_ve_isle(url):
             
             cols_to_keep = []
             for col in df_data.columns:
-                if 'GÖRSEL' in col.upper(): continue 
+                if 'GÖRSEL' in col.upper(): continue # Acil listedeki sütunu gizler
                 if 'SIRA' in col.upper(): cols_to_keep.append(col)
                 else:
                     is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
@@ -124,7 +121,7 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
-# --- KUSURSUZ GÖRSEL ARAYÜZÜ (KUM HAVUZU HTML) ---
+# --- KUM HAVUZU (SANDBOXED) HTML OLUŞTURUCU ---
 def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     renk_tema = "#cc0000" if is_acil else "#004d99"
     kenar_renk = "#a93226" if is_acil else "#003366"
@@ -211,6 +208,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
                     oid = match.group(1)
                     if oid in url_map:
                         p_url = url_map[oid]
+                        # İŞTE O YENİ DİKKAT ÇEKİCİ BUTON:
                         btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
                 
                 html += f"<td>{val}{btn_html}</td>"
@@ -218,6 +216,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
         
     html += """
     </tbody></table></div>
+    
     <script>
     function openModal(url) {
         document.getElementById('modalIframe').src = url;
@@ -232,7 +231,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     """
     return html
 
-# --- SEKMELER VE COMPONENT RENDER (KUM HAVUZU) ---
+# --- SEKMELER ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
@@ -241,7 +240,7 @@ t_gunluk, t_acil = st.tabs(["📋 Günlük Üretim Listesi", "🚨 Acil Üretim 
 with t_gunluk:
     df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
     if not df_g.empty:
-        # Kodları Streamlit'in silmemesi için Kum Havuzu kullanıyoruz
+        # components.html GÜVENLİK DUVARINI AŞMAMIZI SAĞLAR
         components.html(ozel_tablo_html_olustur(df_g, url_g, False), height=850, scrolling=True)
     else:
         st.error(err_g) if err_g else st.warning("Günlük liste boş.")
