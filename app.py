@@ -7,7 +7,7 @@ import time
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
-# GÖRSEL TEMİZLİK VE KURUMSAL TEMA (NAVY & RED HIGHLIGHT)
+# GÖRSEL TEMİZLİK VE KURUMSAL TEMA
 st.markdown("""
     <style>
     /* Zorunlu Light Mode */
@@ -120,10 +120,10 @@ def veri_getir_ve_isle(url):
         return pd.DataFrame(), f"Bağlantı Hatası: {str(e)}"
 
 # --- HTML TABLO OLUŞTURUCU ---
-def ozel_tablo_ciz(df, acil_mod=False):
-    # Kurumsal Renkler (Dijital Klişe Mavi/Navy)
-    renk_tema = "#002266"
-    kenar_renk = "#004d99"
+def ozel_tablo_ciz(df):
+    # Kurumsal Renkler (Tarih bandındaki canlı Dijital Klişe Mavisi)
+    renk_tema = "#004d99" 
+    kenar_renk = "#003366"
     
     html = "<style>"
     html += ".tablo-sarmalayici { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; margin-bottom: 20px; }"
@@ -176,9 +176,12 @@ with t_acil:
     st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
     df_a, err_a = veri_getir_ve_isle(acil_url)
     if not df_a.empty:
-        st.markdown(ozel_tablo_ciz(df_a, acil_mod=True), unsafe_allow_html=True)
+        st.markdown(ozel_tablo_ciz(df_a), unsafe_allow_html=True)
     else:
-        st.success("🎉 Şu an bekleyen acil iş bulunmuyor.")
+        if err_a:
+            st.error(err_a)
+        else:
+            st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
 
 # --- ALT BİLGİ ---
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
