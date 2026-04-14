@@ -54,7 +54,7 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # 1. GİZLİ VERİTABANINDAN LİNKLERİ ÇEK (DB_OLUKLU_START vb.)
+        # GİZLİ VERİTABANINDAN LİNKLERİ ÇEK
         for col_idx in range(len(df_raw.columns)):
             for row_idx in range(min(15, len(df_raw))):
                 val = str(df_raw.iloc[row_idx, col_idx]).strip()
@@ -68,7 +68,7 @@ def veri_getir_ve_isle(url):
                             if oid_raw and gorsel_url.startswith("http"):
                                 url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
-        # 2. GÖRÜNÜR TABLOYU BUL
+        # GÖRÜNÜR TABLOYU BUL
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             row_str = str(df_raw.iloc[i, 0]).upper()
@@ -96,7 +96,6 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # ACİL LİSTESİ İÇİN GÖRSEL SÜTUNUNU OKU
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             if gorsel_col and oid_col:
@@ -127,7 +126,7 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
-# --- KUM HAVUZU (SANDBOXED) HTML OLUŞTURUCU ---
+# --- KART MODU DESTEKLİ HTML OLUŞTURUCU (SİHRİN OLDUĞU YER) ---
 def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     renk_tema = "#cc0000" if is_acil else "#004d99"
     kenar_renk = "#a93226" if is_acil else "#003366"
@@ -136,6 +135,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     <!DOCTYPE html>
     <html>
     <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
     body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #ffffff; }}
     .tablo-sarmalayici {{ overflow-x: auto; width: 100%; padding-bottom: 20px; }}
@@ -146,7 +146,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     .ozel-tablo tr:hover td {{ background-color: #f1f7ff; }}
     .sira-sutunu {{ width: 40px; text-align: center; font-weight: bold; }}
     
-    /* DİKKAT ÇEKİCİ ANİMASYONLU BUTON */
+    /* BUTON TASARIMI */
     .gorsel-buton {{ 
         float: right; cursor: pointer; text-decoration: none; font-size: 12px; padding: 6px 12px; 
         background: linear-gradient(135deg, #e74c3c, #c0392b); color: white !important; 
@@ -161,6 +161,41 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
         100% {{ box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }}
     }}
 
+    /* 📱 MOBİL CİHAZLAR İÇİN KART GÖRÜNÜMÜ SİHRİ */
+    @media screen and (max-width: 768px) {{
+        .ozel-tablo {{ min-width: 100%; border: none; }}
+        .ozel-tablo thead {{ display: none; }} /* Masaüstü başlıklarını gizle */
+        .ozel-tablo tr {{
+            display: block; margin-bottom: 20px; border: 1px solid #d1d9e6; border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08); background-color: #ffffff; overflow: hidden;
+        }}
+        .ozel-tablo tr:nth-child(even) td {{ background-color: #ffffff; }}
+        .ozel-tablo td {{
+            display: block; padding: 10px 15px; border: none; border-bottom: 1px solid #f0f0f0;
+            font-size: 14px; position: relative; text-align: right; padding-left: 45%;
+        }}
+        .ozel-tablo td:last-child {{ border-bottom: none; }}
+        
+        /* Gizlediğimiz başlıkları her hücrenin soluna etiket (Label) olarak basıyoruz */
+        .ozel-tablo td::before {{
+            content: attr(data-label); position: absolute; left: 15px; width: 40%;
+            text-align: left; font-weight: bold; color: {renk_tema}; font-size: 13px;
+        }}
+        
+        /* Sıra Numarası Kartın Zirvesinde Şık Bir Bant Olur */
+        .sira-sutunu {{
+            width: auto; text-align: right; background-color: {renk_tema} !important;
+            color: #fff !important; font-size: 16px; padding: 12px 15px !important;
+        }}
+        .sira-sutunu::before {{ color: #ffffff !important; opacity: 0.9; }}
+        
+        /* Mobil Buton: Kocaman ve baş parmağa tam uygun */
+        .gorsel-buton {{
+            float: none; width: 100%; display: flex; justify-content: center;
+            padding: 14px; font-size: 15px; margin-top: 10px; border-radius: 8px;
+        }}
+    }}
+
     /* SİNEMA MODU (AKORDİYON POP-UP) STİLİ */
     .modal-overlay {{
         display: none; position: fixed; z-index: 999999; left: 0; top: 0; width: 100%; height: 100%;
@@ -168,15 +203,15 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
         align-items: center; justify-content: center; cursor: pointer;
     }}
     .modal-content {{
-        position: relative; width: 90%; height: 90%; max-width: 1200px; background: #fff; 
+        position: relative; width: 95%; height: 90%; max-width: 1200px; background: #fff; 
         border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 10px; cursor: default;
         animation: zoomIn 0.3s ease;
     }}
     @keyframes zoomIn {{ from {{ transform: scale(0.9); opacity: 0; }} to {{ transform: scale(1); opacity: 1; }} }}
     .close-btn {{
-        position: absolute; top: -15px; right: -15px; background: #e74c3c; color: white; border-radius: 50%; 
+        position: absolute; top: -10px; right: -10px; background: #e74c3c; color: white; border-radius: 50%; 
         width: 36px; height: 36px; text-align: center; line-height: 34px; cursor: pointer; 
-        font-weight: bold; font-size: 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition: 0.2s;
+        font-weight: bold; font-size: 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition: 0.2s; z-index: 1000000;
     }}
     .close-btn:hover {{ background: #c0392b; transform: scale(1.1); }}
     </style>
@@ -205,20 +240,21 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
         html += "<tr>"
         for col in df.columns:
             val = str(row[col]).strip()
+            display_name = re.sub(r'_\d+$', '', col)
+            
+            # data-label eklentisi sayesinde mobilde kolon isimleri sol tarafa otomatik yazılır
             if 'SIRA' in col.upper():
-                html += f"<td class='sira-sutunu'>{val}</td>"
+                html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                # MÜKEMMEL DÜZELTME: Artık numaranın cümlenin başında olmasına gerek yok. 
-                # Hücrenin Neresinde olursa olsun 5 veya 6 haneli sipariş numarasını bulur.
                 match = re.search(r'\b(\d{5,6})\b', val)
                 if match:
                     oid = match.group(1)
                     if oid in url_map:
                         p_url = url_map[oid]
-                        btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
+                        btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
                 
-                html += f"<td>{val}{btn_html}</td>"
+                html += f"<td data-label='{display_name}'>{val}{btn_html}</td>"
         html += "</tr>"
         
     html += """
@@ -237,7 +273,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     """
     return html
 
-# --- SEKMELER VE COMPONENT RENDER (KUM HAVUZU) ---
+# --- SEKMELER ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
