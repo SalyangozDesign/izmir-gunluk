@@ -54,30 +54,25 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # SİHİRLİ RADAR: Kılavuz kelime aramadan satırdaki "http" ve "Order ID"yi eşleştirir.
-        for r in range(len(df_raw)):
-            row_vals = [str(x).strip() for x in df_raw.iloc[r].values]
-            url_val = None
-            for v in reversed(row_vals):
-                if v.startswith("http"):
-                    url_val = v
-                    break
-                    
-            if url_val:
-                oid_val = None
-                for v in row_vals:
-                    if re.match(r'^\d{5,6}(?:\.0)?$', v):
-                        oid_val = v.replace('.0', '')
-                        break
+        # 1. GİZLİ VERİTABANINDAN LİNKLERİ ÇEK (DB_OLUKLU_START vb.)
+        for col_idx in range(len(df_raw.columns)):
+            for row_idx in range(min(15, len(df_raw))):
+                val = str(df_raw.iloc[row_idx, col_idx]).strip()
+                if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
+                    for r in range(row_idx + 1, len(df_raw)):
+                        oid_raw = str(df_raw.iloc[r, col_idx]).strip()
+                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
+                        
+                        if col_idx + 5 < len(df_raw.columns):
+                            gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
+                            if oid_raw and gorsel_url.startswith("http"):
+                                url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
-                if oid_val:
-                    # Google Drive linkini iframe (pop-up) içinde açılacak özel formata çevirir
-                    url_map[oid_val] = url_val.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-                    
-        # GÖRÜNÜR TABLOYU BUL
+        # 2. GÖRÜNÜR TABLOYU BUL
         header_idx = -1
         for i in range(min(15, len(df_raw))):
-            if "SIRA" in str(df_raw.iloc[i, 0]).upper():
+            row_str = str(df_raw.iloc[i, 0]).upper()
+            if "SIRA" in row_str:
                 header_idx = i; break
                 
         if header_idx != -1:
@@ -101,6 +96,17 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
+            # ACİL LİSTESİ İÇİN GÖRSEL SÜTUNUNU OKU
+            gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
+            oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
+            if gorsel_col and oid_col:
+                for r in range(len(df_data)):
+                    oid_raw = str(df_data.iloc[r][oid_col]).strip()
+                    if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2]
+                    gorsel_url = str(df_data.iloc[r][gorsel_col]).strip()
+                    if oid_raw and gorsel_url.startswith("http"):
+                        url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+            
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
             df_data = df_data.dropna(subset=[sira_col])
@@ -108,7 +114,7 @@ def veri_getir_ve_isle(url):
             
             cols_to_keep = []
             for col in df_data.columns:
-                if 'GÖRSEL' in col.upper(): continue # Acil listedeki sütunu gizler
+                if 'GÖRSEL' in col.upper(): continue 
                 if 'SIRA' in col.upper(): cols_to_keep.append(col)
                 else:
                     is_valid = df_data[col].apply(lambda x: str(x).strip() if pd.notna(x) else "").replace(['nan', 'NaN', 'None', ''], pd.NA).notna().any()
@@ -203,12 +209,13 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
                 btn_html = ""
-                match = re.search(r'^(\d{5,6})', val)
+                # MÜKEMMEL DÜZELTME: Artık numaranın cümlenin başında olmasına gerek yok. 
+                # Hücrenin Neresinde olursa olsun 5 veya 6 haneli sipariş numarasını bulur.
+                match = re.search(r'\b(\d{5,6})\b', val)
                 if match:
                     oid = match.group(1)
                     if oid in url_map:
                         p_url = url_map[oid]
-                        # İŞTE O YENİ DİKKAT ÇEKİCİ BUTON:
                         btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
                 
                 html += f"<td>{val}{btn_html}</td>"
@@ -216,7 +223,6 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
         
     html += """
     </tbody></table></div>
-    
     <script>
     function openModal(url) {
         document.getElementById('modalIframe').src = url;
@@ -231,7 +237,7 @@ def ozel_tablo_html_olustur(df, url_map, is_acil=False):
     """
     return html
 
-# --- SEKMELER ---
+# --- SEKMELER VE COMPONENT RENDER (KUM HAVUZU) ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
@@ -240,7 +246,6 @@ t_gunluk, t_acil = st.tabs(["📋 Günlük Üretim Listesi", "🚨 Acil Üretim 
 with t_gunluk:
     df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
     if not df_g.empty:
-        # components.html GÜVENLİK DUVARINI AŞMAMIZI SAĞLAR
         components.html(ozel_tablo_html_olustur(df_g, url_g, False), height=850, scrolling=True)
     else:
         st.error(err_g) if err_g else st.warning("Günlük liste boş.")
