@@ -40,7 +40,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🛡️ HATA KORUMALI AKILLI DEDEKTÖR ---
+# --- 🛡️ YENİ: EVRENSEL LİNK DEDEKTÖRÜ (Kusursuz Eşleştirme) ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -50,32 +50,23 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        for col_idx in range(len(df_raw.columns)):
-            for row_idx in range(min(15, len(df_raw))):
-                val = str(df_raw.iloc[row_idx, col_idx]).strip()
-                if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
-                    for r in range(row_idx + 1, len(df_raw)):
-                        oid_raw = str(df_raw.iloc[r, col_idx]).strip()
-                        if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
-                        
-                        is_raw = ""
-                        if col_idx + 2 < len(df_raw.columns):
-                            is_raw = str(df_raw.iloc[r, col_idx + 2]).strip()
-                            
-                        if col_idx + 5 < len(df_raw.columns):
-                            gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
-                            if gorsel_url.startswith("http"):
-                                clean_url = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-                                
-                                if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None"]:
-                                    url_map[oid_raw] = clean_url
-                                
-                                if is_raw and is_raw not in ["nan", "None"]:
-                                    # 🛠️ YENİ RADAR: Sadece rakamlardan oluşan 5 veya 6 haneli dizilimleri cımbızla çeker!
-                                    found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
-                                    for num in found_numbers:
-                                        url_map[num] = clean_url
+        # 1. 🚀 SİHİRLİ RADAR: Sütun sayısına bakmaz! Satırdaki linki ve numarayı otomatik bulup eşleştirir.
+        for r in range(len(df_raw)):
+            row_vals = [str(x).strip() for x in df_raw.iloc[r].values]
+            urls_in_row = [v for v in row_vals if v.startswith("http")]
+            
+            if urls_in_row:
+                # O satırda bir Google Drive linki varsa al ve iframe formatına çevir
+                clean_url = urls_in_row[-1].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
+                # Aynı satırdaki TÜM metinleri tara, 5 veya 6 haneli sayı bulursan bu linkle eşleştir
+                for v in row_vals:
+                    if v not in urls_in_row and v not in ["nan", "None", ""]:
+                        found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', v)
+                        for num in found_numbers:
+                            url_map[num] = clean_url
+                
+        # 2. GÖRÜNÜR TABLOYU BUL VE ÇIKAR
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             if "SIRA" in str(df_raw.iloc[i, 0]).upper():
@@ -102,16 +93,6 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
-            oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
-            if gorsel_col and oid_col:
-                for r in range(len(df_data)):
-                    oid_raw = str(df_data.iloc[r][oid_col]).strip()
-                    if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2]
-                    gorsel_url = str(df_data.iloc[r][gorsel_col]).strip()
-                    if oid_raw and gorsel_url.startswith("http"):
-                        url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-            
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
             df_data = df_data.dropna(subset=[sira_col])
@@ -132,6 +113,7 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
+# --- MASAÜSTÜ VE MOBİL KART GÖRÜNÜMÜ OLUŞTURUCU ---
 def ozel_tablo_html_olustur_gunluk(df, url_map):
     renk_tema = "#004d99"
     kenar_renk = "#003366"
@@ -207,7 +189,6 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
                 btn_html = ""
-                # 🛠️ YENİ RADAR AKTİF
                 all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val)
                 for num in all_numbers:
                     if num in url_map:
@@ -339,7 +320,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
                 html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                # 🛠️ YENİ RADAR AKTİF
                 all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val)
                 for num in all_numbers:
                     if num in url_map:
