@@ -40,7 +40,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🛡️ YENİ: EVRENSEL LİNK DEDEKTÖRÜ (Kusursuz Eşleştirme) ---
+# --- 🛡️ YENİ: BÖLGE KORUMALI (BLOK BAZLI) DEDEKTÖR ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -50,23 +50,37 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # 1. 🚀 SİHİRLİ RADAR: Sütun sayısına bakmaz! Satırdaki linki ve numarayı otomatik bulup eşleştirir.
-        for r in range(len(df_raw)):
-            row_vals = [str(x).strip() for x in df_raw.iloc[r].values]
-            urls_in_row = [v for v in row_vals if v.startswith("http")]
-            
-            if urls_in_row:
-                # O satırda bir Google Drive linki varsa al ve iframe formatına çevir
-                clean_url = urls_in_row[-1].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-                
-                # Aynı satırdaki TÜM metinleri tara, 5 veya 6 haneli sayı bulursan bu linkle eşleştir
-                for v in row_vals:
-                    if v not in urls_in_row and v not in ["nan", "None", ""]:
-                        found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', v)
-                        for num in found_numbers:
-                            url_map[num] = clean_url
-                
-        # 2. GÖRÜNÜR TABLOYU BUL VE ÇIKAR
+        # 1. 🚀 SİHİRLİ RADAR 2.0 (Blok İzolasyonu): Oluklu linki Oluklu'ya, Esnek linki Esnek'e!
+        for col_idx in range(len(df_raw.columns)):
+            for row_idx in range(min(15, len(df_raw))):
+                val = str(df_raw.iloc[row_idx, col_idx]).strip()
+                if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
+                    # Gizli Veritabanının sınırlarını belirle
+                    url_col = col_idx + 5
+                    is_col = col_idx + 2
+                    
+                    if url_col < len(df_raw.columns):
+                        for r in range(row_idx + 1, len(df_raw)):
+                            gorsel_url = str(df_raw.iloc[r, url_col]).strip()
+                            
+                            if gorsel_url.startswith("http"):
+                                clean_url = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                                
+                                # A. O Bloğun Order ID'sini Eşleştir
+                                oid_raw = str(df_raw.iloc[r, col_idx]).strip()
+                                if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
+                                if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None"]:
+                                    url_map[oid_raw] = clean_url
+                                    
+                                # B. O Bloğun Manuel İş İsmini Eşleştir
+                                if is_col < len(df_raw.columns):
+                                    is_raw = str(df_raw.iloc[r, is_col]).strip()
+                                    if is_raw and is_raw not in ["nan", "None"]:
+                                        found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
+                                        for num in found_numbers:
+                                            url_map[num] = clean_url
+                                            
+        # 2. ACİL SEKMESİ VE GÖRÜNÜR TABLO (Bağımsız Okuyucu)
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             if "SIRA" in str(df_raw.iloc[i, 0]).upper():
@@ -92,6 +106,29 @@ def veri_getir_ve_isle(url):
             
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
+            
+            gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
+            oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
+            is_col_visible = next((c for c in df_data.columns if "İŞİN İSMİ" in str(c).upper() or "ISIN ISMI" in str(c).upper()), None)
+            
+            if gorsel_col:
+                for r in range(len(df_data)):
+                    gorsel_url = str(df_data.iloc[r][gorsel_col]).strip()
+                    if gorsel_url.startswith("http"):
+                        clean_url = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                        
+                        if oid_col:
+                            oid_raw = str(df_data.iloc[r][oid_col]).strip()
+                            if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2]
+                            if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None"]:
+                                url_map[oid_raw] = clean_url
+                        
+                        if is_col_visible:
+                            is_raw = str(df_data.iloc[r][is_col_visible]).strip()
+                            if is_raw and is_raw not in ["nan", "None"]:
+                                found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
+                                for num in found_numbers:
+                                    url_map[num] = clean_url
             
             sira_col = df_data.columns[0]
             df_data[sira_col] = pd.to_numeric(df_data[sira_col], errors='coerce')
