@@ -58,7 +58,6 @@ def veri_getir_ve_isle(url):
                         oid_raw = str(df_raw.iloc[r, col_idx]).strip()
                         if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
                         
-                        # 🛠️ ÇÖZÜM: İş ismi ve Görsel sütunları gerçekten var mı diye güvenlik kontrolü yapıyoruz. (IndexOutOfBounds hatasını engeller)
                         is_raw = ""
                         if col_idx + 2 < len(df_raw.columns):
                             is_raw = str(df_raw.iloc[r, col_idx + 2]).strip()
@@ -72,7 +71,8 @@ def veri_getir_ve_isle(url):
                                     url_map[oid_raw] = clean_url
                                 
                                 if is_raw and is_raw not in ["nan", "None"]:
-                                    found_numbers = re.findall(r'\b(\d{5,6})\b', is_raw)
+                                    # 🛠️ YENİ RADAR: Sadece rakamlardan oluşan 5 veya 6 haneli dizilimleri cımbızla çeker!
+                                    found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
                                     for num in found_numbers:
                                         url_map[num] = clean_url
                 
@@ -207,7 +207,8 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
                 btn_html = ""
-                all_numbers = re.findall(r'\b(\d{5,6})\b', val)
+                # 🛠️ YENİ RADAR AKTİF
+                all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val)
                 for num in all_numbers:
                     if num in url_map:
                         p_url = url_map[num]
@@ -230,7 +231,7 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
         html += f"<div class='mobile-category'>📦 OLUKLU MUKAVVA</div>"
         for i, job in enumerate(oluklu_jobs, 1):
             btn_html = ""
-            all_numbers = re.findall(r'\b(\d{5,6})\b', job)
+            all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', job)
             for num in all_numbers:
                 if num in url_map:
                     p_url = url_map[num]
@@ -242,7 +243,7 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
         html += f"<div class='mobile-category'>🍬 ESNEK AMBALAJ</div>"
         for i, job in enumerate(esnek_jobs, 1):
             btn_html = ""
-            all_numbers = re.findall(r'\b(\d{5,6})\b', job)
+            all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', job)
             for num in all_numbers:
                 if num in url_map:
                     p_url = url_map[num]
@@ -338,7 +339,8 @@ def ozel_tablo_html_olustur_acil(df, url_map):
                 html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                all_numbers = re.findall(r'\b(\d{5,6})\b', val)
+                # 🛠️ YENİ RADAR AKTİF
+                all_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val)
                 for num in all_numbers:
                     if num in url_map:
                         p_url = url_map[num]
