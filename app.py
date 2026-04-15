@@ -5,7 +5,6 @@ import datetime
 import re
 import time 
 
-# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
@@ -24,6 +23,10 @@ st.markdown("""
     /* Acil Üretim 3. sekme olduğu için kırmızılığı ona aktarıyoruz */
     .stTabs [data-baseweb="tab-list"] button:nth-child(3) [data-testid="stMarkdownContainer"] p {
         color: #ff0000 !important;
+    }
+    /* Dünkü Liste 2. sekme olduğu için yeşili ona veriyoruz */
+    .stTabs [data-baseweb="tab-list"] button:nth-child(2) [data-testid="stMarkdownContainer"] p {
+        color: #27ae60 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -47,9 +50,17 @@ def veri_getir_ve_isle(url):
     safe_url = f"{url}&_={zaman_damgasi}" if "?" in url else f"{url}?_={zaman_damgasi}"
     
     url_map = {}
+    extracted_date = ""
     try:
         df_raw = pd.read_csv(safe_url, header=None, names=range(50), on_bad_lines='skip', engine='python') 
         
+        # 🛠️ YENİ: Excel'in 2. satırındaki kayıtlı, donmuş "Tarihi" çeken zeka!
+        for i in range(min(5, len(df_raw))):
+            val = str(df_raw.iloc[i, 0]).strip()
+            if "İZMİR" in val.upper() or "IZMIR" in val.upper():
+                extracted_date = str(df_raw.iloc[i+1, 0]).strip()
+                break
+
         for r in range(3, len(df_raw)):
             url_val = str(df_raw.iloc[r, 30]).strip()
             if "http" in url_val:
@@ -131,11 +142,11 @@ def veri_getir_ve_isle(url):
                     if is_valid: cols_to_keep.append(col)
             
             df_final = df_data[cols_to_keep].fillna('')
-            return df_final, url_map, None
+            return df_final, url_map, None, extracted_date
         else:
-            return pd.DataFrame(), {}, "Tabloda 'SIRA' başlığı bulunamadı."
+            return pd.DataFrame(), {}, "Tabloda 'SIRA' başlığı bulunamadı.", extracted_date
     except Exception as e:
-        return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
+        return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}", extracted_date
 
 def ozel_tablo_html_olustur_gunluk(df, url_map):
     renk_tema = "#004d99"
@@ -227,36 +238,29 @@ def ozel_tablo_html_olustur_acil(df, url_map):
 # ----------------- URL AYARLARI -----------------
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
-
-# 100% ÇALIŞAN KUSURSUZ DÜNKÜ LİSTE LİNKİ
 dunku_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1976168354&single=true&output=csv"
 
-t_dunku, t_gunluk, t_acil = st.tabs(["⏪ Dünkü Liste", "📋 Günlük Üretim", "🚨 Acil Üretim"])
-
-with t_dunku:
-    st.markdown("<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
-    df_d, url_d, err_d = veri_getir_ve_isle(dunku_url)
-    if not df_d.empty:
-        components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
-    else:
-        if err_d: st.error(err_d)
-        else: st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
+# 1. GÜNLÜK ÜRETİM SİSTEME İLK AÇILIŞ SEKMESİ YAPILDI
+t_gunluk, t_dunku, t_acil = st.tabs(["📋 Günlük Üretim", "⏪ Dünkü Liste", "🚨 Acil Üretim"])
 
 with t_gunluk:
-    df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
-    if not df_g.empty:
-        components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
-    else:
-        if err_g: st.error(err_g)
-        else: st.warning("Günlük liste boş.")
+    df_g, url_g, err_g, date_g = veri_getir_ve_isle(gunluk_url)
+    if not df_g.empty: components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
+    else: st.error(err_g) if err_g else st.warning("Günlük liste boş.")
+
+with t_dunku:
+    df_d, url_d, err_d, date_d = veri_getir_ve_isle(dunku_url)
+    # 2. DÜNKÜ LİSTE ARTIK EXCELDEKİ KENDİ DONMUŞ TARİHİNİ ÇEKİYOR
+    gosterilecek_tarih = date_d if date_d else "Dünkü Tarih"
+    st.markdown(f"<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ ({gosterilecek_tarih})</h3>", unsafe_allow_html=True)
+    
+    if not df_d.empty: components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
+    else: st.error(err_d) if err_d else st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
 
 with t_acil:
     st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
-    df_a, url_a, err_a = veri_getir_ve_isle(acil_url)
-    if not df_a.empty:
-        components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
-    else:
-        if err_a: st.error(err_a)
-        else: st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
+    df_a, url_a, err_a, date_a = veri_getir_ve_isle(acil_url)
+    if not df_a.empty: components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
+    else: st.error(err_a) if err_a else st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
 
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
