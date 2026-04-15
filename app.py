@@ -5,7 +5,6 @@ import datetime
 import re
 import time 
 
-# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
@@ -40,7 +39,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- VERİ VE GİZLİ LİNK DEDEKTÖRÜ ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -50,19 +48,32 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
+        # 1. GİZLİ LİNKLERİ ÇEK VE "İŞ İSMİNİN" İÇİNDEKİ RAKAMLARLA (40198 vb.) EŞLEŞTİR
         for col_idx in range(len(df_raw.columns)):
             for row_idx in range(min(15, len(df_raw))):
                 val = str(df_raw.iloc[row_idx, col_idx]).strip()
                 if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
                     for r in range(row_idx + 1, len(df_raw)):
                         oid_raw = str(df_raw.iloc[r, col_idx]).strip()
+                        is_raw = str(df_raw.iloc[r, col_idx + 2]).strip() # İşin İsmi Hücresi
                         if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
                         
                         if col_idx + 5 < len(df_raw.columns):
                             gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
-                            if oid_raw and gorsel_url.startswith("http"):
-                                url_map[oid_raw] = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                            if gorsel_url.startswith("http"):
+                                clean_url = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
+                                
+                                # Eğer resmi bir Order ID varsa kaydet
+                                if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None"]:
+                                    url_map[oid_raw] = clean_url
+                                
+                                # 🛠️ YENİ ZEKA: Manuel yazılan metnin içindeki HERHANGİ BİR 5-6 haneli sayıyı da Görselle bağla!
+                                if is_raw and is_raw not in ["nan", "None"]:
+                                    found_numbers = re.findall(r'\b(\d{5,6})\b', is_raw)
+                                    for num in found_numbers:
+                                        url_map[num] = clean_url
                 
+        # 2. GÖRÜNÜR TABLOYU BUL VE ÇIKAR
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             if "SIRA" in str(df_raw.iloc[i, 0]).upper():
@@ -89,6 +100,7 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
+            # Acil Sekmesi İçin Görsel Eşleştirmesi
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             if gorsel_col and oid_col:
@@ -119,7 +131,7 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
-# --- 1. GÜNLÜK LİSTE İÇİN YENİ ÇİFT MOTORLU YAPI (MASAÜSTÜ VE MOBİL AYRI) ---
+# --- 1. GÜNLÜK LİSTE (MASAÜSTÜ VE MOBİL KART) ---
 def ozel_tablo_html_olustur_gunluk(df, url_map):
     renk_tema = "#004d99"
     kenar_renk = "#003366"
@@ -132,7 +144,6 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     <style>
     body {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #ffffff; }}
     
-    /* ORTAK BUTON VE MODAL (SİNEMA EKRANI) TASARIMLARI */
     .gorsel-buton {{ 
         float: right; cursor: pointer; text-decoration: none; font-size: 12px; padding: 6px 12px; 
         background: linear-gradient(135deg, #e74c3c, #c0392b); color: white !important; 
@@ -148,7 +159,6 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     .close-btn {{ position: absolute; top: -10px; right: -10px; background: #e74c3c; color: white; border-radius: 50%; width: 36px; height: 36px; text-align: center; line-height: 34px; cursor: pointer; font-weight: bold; font-size: 24px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid white; transition: 0.2s; z-index: 1000000; }}
     .close-btn:hover {{ background: #c0392b; transform: scale(1.1); }}
 
-    /* MASAÜSTÜ (GENİŞ EKRAN) TASARIMI */
     .desktop-view {{ display: block; }}
     .mobile-view {{ display: none; padding: 5px; }}
     .tablo-sarmalayici {{ overflow-x: auto; width: 100%; padding-bottom: 20px; }}
@@ -159,10 +169,9 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     .ozel-tablo tr:hover td {{ background-color: #f1f7ff; }}
     .sira-sutunu {{ width: 40px; text-align: center; font-weight: bold; }}
 
-    /* MOBİL KART TASARIMI */
     @media screen and (max-width: 768px) {{
-        .desktop-view {{ display: none; }} /* Geniş tabloyu gizle */
-        .mobile-view {{ display: block; }} /* Mobil blokları göster */
+        .desktop-view {{ display: none; }}
+        .mobile-view {{ display: block; }}
         .mobile-category {{ background: {renk_tema}; color: white; padding: 12px; border-radius: 8px; font-weight: bold; margin-top: 15px; margin-bottom: 15px; text-align: center; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
         .mobile-card {{ background: #fff; border: 1px solid #d1d9e6; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); position: relative; }}
         .mc-sira {{ background: {renk_tema}; color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; position: absolute; top: -10px; left: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
@@ -198,63 +207,52 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
                 btn_html = ""
-                match = re.search(r'\b(\d{5,6})\b', val)
-                if match:
-                    oid = match.group(1)
-                    if oid in url_map:
-                        p_url = url_map[oid]
+                # 🛠️ YENİ ZEKA: Cümledeki tüm 5 veya 6 haneli sayıları bul, görsel veritabanında var mı diye kontrol et!
+                all_numbers = re.findall(r'\b(\d{5,6})\b', val)
+                for num in all_numbers:
+                    if num in url_map:
+                        p_url = url_map[num]
                         btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
+                        break # İlk bulduğunu bas ve çık
+                        
                 html += f"<td>{val}{btn_html}</td>"
         html += "</tr>"
         
     html += "</tbody></table></div></div>"
     
-    # MOBİL LİSTE VE KART GÖRÜNÜMÜ (Veriyi Sütunlardan Ayırma Sihri)
+    # MOBİL GÖRÜNÜM
     html += "<div class='mobile-view'>"
-    
     oluklu_cols = [c for c in df.columns if "OLUKLU" in str(c).upper()]
     esnek_cols = [c for c in df.columns if "ESNEK" in str(c).upper()]
     
-    oluklu_jobs = []
-    for col in oluklu_cols:
-        for val in df[col]:
-            v = str(val).strip()
-            if v and v != "nan" and v != "None":
-                oluklu_jobs.append(v)
-                
-    esnek_jobs = []
-    for col in esnek_cols:
-        for val in df[col]:
-            v = str(val).strip()
-            if v and v != "nan" and v != "None":
-                esnek_jobs.append(v)
+    oluklu_jobs = [str(val).strip() for col in oluklu_cols for val in df[col] if str(val).strip() not in ["", "nan", "None"]]
+    esnek_jobs = [str(val).strip() for col in esnek_cols for val in df[col] if str(val).strip() not in ["", "nan", "None"]]
                 
     if oluklu_jobs:
         html += f"<div class='mobile-category'>📦 OLUKLU MUKAVVA</div>"
         for i, job in enumerate(oluklu_jobs, 1):
             btn_html = ""
-            match = re.search(r'\b(\d{5,6})\b', job)
-            if match:
-                oid = match.group(1)
-                if oid in url_map:
-                    p_url = url_map[oid]
+            all_numbers = re.findall(r'\b(\d{5,6})\b', job)
+            for num in all_numbers:
+                if num in url_map:
+                    p_url = url_map[num]
                     btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    break
             html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{job}{btn_html}</div></div>"
             
     if esnek_jobs:
         html += f"<div class='mobile-category'>🍬 ESNEK AMBALAJ</div>"
         for i, job in enumerate(esnek_jobs, 1):
             btn_html = ""
-            match = re.search(r'\b(\d{5,6})\b', job)
-            if match:
-                oid = match.group(1)
-                if oid in url_map:
-                    p_url = url_map[oid]
+            all_numbers = re.findall(r'\b(\d{5,6})\b', job)
+            for num in all_numbers:
+                if num in url_map:
+                    p_url = url_map[num]
                     btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    break
             html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{job}{btn_html}</div></div>"
             
-    html += "</div>" # mobile-view kapat
-    
+    html += "</div>"
     html += """
     <script>
     function openModal(url) { document.getElementById('modalIframe').src = url; document.getElementById('imgModal').style.display = 'flex'; }
@@ -264,7 +262,7 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     """
     return html
 
-# --- 2. ACİL LİSTE İÇİN (Sizin Beğendiğiniz) TABLO/KART YAPISI ---
+# --- 2. ACİL LİSTE (MOBİL ETİKETLİ KART) ---
 def ozel_tablo_html_olustur_acil(df, url_map):
     renk_tema = "#cc0000"
     kenar_renk = "#a93226"
@@ -284,7 +282,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
     .ozel-tablo tr:hover td {{ background-color: #fceceb; }}
     .sira-sutunu {{ width: 40px; text-align: center; font-weight: bold; }}
     
-    /* BUTON TASARIMI */
     .gorsel-buton {{ 
         float: right; cursor: pointer; text-decoration: none; font-size: 12px; padding: 6px 12px; 
         background: linear-gradient(135deg, #e74c3c, #c0392b); color: white !important; 
@@ -294,7 +291,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
     .gorsel-buton:hover {{ transform: scale(1.1); box-shadow: 0 6px 12px rgba(0,0,0,0.3); background: linear-gradient(135deg, #c0392b, #a93226); }}
     @keyframes pulse {{ 0% {{ box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }} 70% {{ box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }} 100% {{ box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }} }}
 
-    /* MOBİL İÇİN ETİKETLİ KART GÖRÜNÜMÜ (Beğendiğiniz Kısım) */
     @media screen and (max-width: 768px) {{
         .ozel-tablo {{ min-width: 100%; border: none; }}
         .ozel-tablo thead {{ display: none; }}
@@ -308,7 +304,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
         .gorsel-buton {{ float: none; width: 100%; display: flex; justify-content: center; padding: 12px; font-size: 14px; margin-top: 10px; border-radius: 6px; }}
     }}
 
-    /* SİNEMA MODU (AKORDİYON) STİLİ */
     .modal-overlay {{ display: none; position: fixed; z-index: 999999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); backdrop-filter: blur(5px); align-items: center; justify-content: center; cursor: pointer; }}
     .modal-content {{ position: relative; width: 95%; height: 90%; max-width: 1200px; background: #fff; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); padding: 10px; cursor: default; animation: zoomIn 0.3s ease; }}
     @keyframes zoomIn {{ from {{ transform: scale(0.9); opacity: 0; }} to {{ transform: scale(1); opacity: 1; }} }}
@@ -346,12 +341,13 @@ def ozel_tablo_html_olustur_acil(df, url_map):
                 html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                match = re.search(r'\b(\d{5,6})\b', val)
-                if match:
-                    oid = match.group(1)
-                    if oid in url_map:
-                        p_url = url_map[oid]
+                # 🛠️ YENİ ZEKA
+                all_numbers = re.findall(r'\b(\d{5,6})\b', val)
+                for num in all_numbers:
+                    if num in url_map:
+                        p_url = url_map[num]
                         btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
+                        break
                 
                 html += f"<td data-label='{display_name}'>{val}{btn_html}</td>"
         html += "</tr>"
