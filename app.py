@@ -40,75 +40,59 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- 🛡️ KUSURSUZ İZOLASYON VE HATA KORUMA MOTORU ---
-# Değişiklikleri hızlı görmek için Cache süresi 10 saniyeye düşürüldü!
-@st.cache_data(ttl=10) 
+# --- 🚀 1 SANİYELİK CANLI YENİLEME VE KESKİN NİŞANCI RADARI ---
+@st.cache_data(ttl=1) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
     safe_url = f"{url}&_={zaman_damgasi}" if "?" in url else f"{url}?_={zaman_damgasi}"
     
     url_map = {}
     try:
-        df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
+        # Pandas'ın boş sütunları silmesini engellemek için zorla 50 sütun okutuyoruz!
+        df_raw = pd.read_csv(safe_url, header=None, names=range(50), on_bad_lines='skip', engine='python') 
         
-        # 1. BÖLGE İZOLASYONLU LİNK DEDEKTÖRÜ (Karışmayı Engeller)
-        for col_idx in range(len(df_raw.columns)):
-            for row_idx in range(min(15, len(df_raw))):
-                val = str(df_raw.iloc[row_idx, col_idx]).strip()
+        # 1. KESKİN NİŞANCI: Oluklu Veritabanı (İndeksler: ID=25, İş=27, URL=30)
+        for r in range(3, len(df_raw)):
+            url_val = str(df_raw.iloc[r, 30]).strip()
+            if "http" in url_val:
+                clean_url = url_val[url_val.find("http"):].split()[0].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
-                # --- SADECE OLUKLU MUKAVVA BÖLGESİNİ TARA ---
-                if val == "DB_OLUKLU_START":
-                    url_col = col_idx + 5
-                    is_col = col_idx + 2
-                    # Çökme Koruması: Sütun silinmişse hata verme!
-                    if url_col < len(df_raw.columns):
-                        for r in range(row_idx + 1, len(df_raw)):
-                            gorsel_url = str(df_raw.iloc[r, url_col]).strip()
-                            if "http" in gorsel_url:
-                                clean_url = gorsel_url[gorsel_url.find("http"):].split()[0].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-                                
-                                oid_raw = str(df_raw.iloc[r, col_idx]).strip().replace('.0', '')
-                                if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None", ""]:
-                                    url_map[oid_raw] = clean_url
-                                
-                                if is_col < len(df_raw.columns):
-                                    is_raw = str(df_raw.iloc[r, is_col]).strip()
-                                    if is_raw and is_raw not in ["nan", "None", ""]:
-                                        found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
-                                        for num in found_numbers:
-                                            url_map[num] = clean_url
+                oid = str(df_raw.iloc[r, 25]).strip().replace('.0', '')
+                if oid and oid not in ["MANUEL", "-", "nan", "None", ""]:
+                    url_map[oid] = clean_url
+                
+                is_val = str(df_raw.iloc[r, 27]).strip()
+                if is_val and is_val not in ["nan", "None", ""]:
+                    found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_val)
+                    for num in found_numbers:
+                        url_map[num] = clean_url
 
-                # --- SADECE ESNEK AMBALAJ BÖLGESİNİ TARA ---
-                elif val == "DB_ESNEK_START":
-                    url_col = col_idx + 5
-                    is_col = col_idx + 2
-                    # Çökme Koruması
-                    if url_col < len(df_raw.columns):
-                        for r in range(row_idx + 1, len(df_raw)):
-                            gorsel_url = str(df_raw.iloc[r, url_col]).strip()
-                            if "http" in gorsel_url:
-                                clean_url = gorsel_url[gorsel_url.find("http"):].split()[0].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
-                                
-                                oid_raw = str(df_raw.iloc[r, col_idx]).strip().replace('.0', '')
-                                if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None", ""]:
-                                    url_map[oid_raw] = clean_url
-                                
-                                if is_col < len(df_raw.columns):
-                                    is_raw = str(df_raw.iloc[r, is_col]).strip()
-                                    if is_raw and is_raw not in ["nan", "None", ""]:
-                                        found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_raw)
-                                        for num in found_numbers:
-                                            url_map[num] = clean_url
+        # 2. KESKİN NİŞANCI: Esnek Veritabanı (İndeksler: ID=31, İş=33, URL=36)
+        for r in range(3, len(df_raw)):
+            url_val = str(df_raw.iloc[r, 36]).strip()
+            if "http" in url_val:
+                clean_url = url_val[url_val.find("http"):].split()[0].replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                 
-        # 2. GÖRÜNÜR TABLOYU BUL VE ÇIKAR
+                oid = str(df_raw.iloc[r, 31]).strip().replace('.0', '')
+                if oid and oid not in ["MANUEL", "-", "nan", "None", ""]:
+                    url_map[oid] = clean_url
+                
+                is_val = str(df_raw.iloc[r, 33]).strip()
+                if is_val and is_val not in ["nan", "None", ""]:
+                    found_numbers = re.findall(r'(?<!\d)(\d{5,6})(?!\d)', is_val)
+                    for num in found_numbers:
+                        url_map[num] = clean_url
+                
+        # 3. GÖRÜNÜR TABLOYU ÇEK
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             if "SIRA" in str(df_raw.iloc[i, 0]).upper():
                 header_idx = i; break
                 
         if header_idx != -1:
-            max_cols = min(12, len(df_raw.columns))
+            max_cols = min(15, len(df_raw.columns))
             df_subset = df_raw.iloc[header_idx : header_idx+45, 0:max_cols].copy()
+            df_subset.dropna(axis=1, how='all', inplace=True) # Boş hayalet sütunları at
             
             raw_headers = df_subset.iloc[0].tolist()
             clean_headers = []
@@ -127,7 +111,7 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # ACİL LİSTE İÇİN GÖRSEL EŞLEŞTİRMESİ
+            # Acil Liste İçin Dinamik Tarama
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             is_col_visible = next((c for c in df_data.columns if "İŞİN İSMİ" in str(c).upper() or "ISIN ISMI" in str(c).upper()), None)
