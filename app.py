@@ -5,6 +5,7 @@ import datetime
 import re
 import time 
 
+# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
@@ -39,6 +40,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# --- 🛡️ HATA KORUMALI AKILLI DEDEKTÖR ---
 @st.cache_data(ttl=60) 
 def veri_getir_ve_isle(url):
     zaman_damgasi = int(time.time())
@@ -48,32 +50,32 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, on_bad_lines='skip') 
         
-        # 1. GİZLİ LİNKLERİ ÇEK VE "İŞ İSMİNİN" İÇİNDEKİ RAKAMLARLA (40198 vb.) EŞLEŞTİR
         for col_idx in range(len(df_raw.columns)):
             for row_idx in range(min(15, len(df_raw))):
                 val = str(df_raw.iloc[row_idx, col_idx]).strip()
                 if val in ["DB_OLUKLU_START", "DB_ESNEK_START"]:
                     for r in range(row_idx + 1, len(df_raw)):
                         oid_raw = str(df_raw.iloc[r, col_idx]).strip()
-                        is_raw = str(df_raw.iloc[r, col_idx + 2]).strip() # İşin İsmi Hücresi
                         if oid_raw.endswith('.0'): oid_raw = oid_raw[:-2] 
                         
+                        # 🛠️ ÇÖZÜM: İş ismi ve Görsel sütunları gerçekten var mı diye güvenlik kontrolü yapıyoruz. (IndexOutOfBounds hatasını engeller)
+                        is_raw = ""
+                        if col_idx + 2 < len(df_raw.columns):
+                            is_raw = str(df_raw.iloc[r, col_idx + 2]).strip()
+                            
                         if col_idx + 5 < len(df_raw.columns):
                             gorsel_url = str(df_raw.iloc[r, col_idx + 5]).strip()
                             if gorsel_url.startswith("http"):
                                 clean_url = gorsel_url.replace("/view?usp=drivesdk", "/preview").replace("/view", "/preview")
                                 
-                                # Eğer resmi bir Order ID varsa kaydet
                                 if oid_raw and oid_raw not in ["MANUEL", "-", "nan", "None"]:
                                     url_map[oid_raw] = clean_url
                                 
-                                # 🛠️ YENİ ZEKA: Manuel yazılan metnin içindeki HERHANGİ BİR 5-6 haneli sayıyı da Görselle bağla!
                                 if is_raw and is_raw not in ["nan", "None"]:
                                     found_numbers = re.findall(r'\b(\d{5,6})\b', is_raw)
                                     for num in found_numbers:
                                         url_map[num] = clean_url
                 
-        # 2. GÖRÜNÜR TABLOYU BUL VE ÇIKAR
         header_idx = -1
         for i in range(min(15, len(df_raw))):
             if "SIRA" in str(df_raw.iloc[i, 0]).upper():
@@ -100,7 +102,6 @@ def veri_getir_ve_isle(url):
             df_subset.columns = unique_headers
             df_data = df_subset.iloc[1:].copy()
             
-            # Acil Sekmesi İçin Görsel Eşleştirmesi
             gorsel_col = next((c for c in df_data.columns if "GÖRSEL" in str(c).upper()), None)
             oid_col = next((c for c in df_data.columns if "ORDER ID" in str(c).upper()), None)
             if gorsel_col and oid_col:
@@ -131,7 +132,6 @@ def veri_getir_ve_isle(url):
     except Exception as e:
         return pd.DataFrame(), {}, f"Bağlantı Hatası: {str(e)}"
 
-# --- 1. GÜNLÜK LİSTE (MASAÜSTÜ VE MOBİL KART) ---
 def ozel_tablo_html_olustur_gunluk(df, url_map):
     renk_tema = "#004d99"
     kenar_renk = "#003366"
@@ -207,20 +207,18 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
                 html += f"<td class='sira-sutunu'>{val}</td>"
             else:
                 btn_html = ""
-                # 🛠️ YENİ ZEKA: Cümledeki tüm 5 veya 6 haneli sayıları bul, görsel veritabanında var mı diye kontrol et!
                 all_numbers = re.findall(r'\b(\d{5,6})\b', val)
                 for num in all_numbers:
                     if num in url_map:
                         p_url = url_map[num]
                         btn_html = f" <button onclick=\"openModal('{p_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
-                        break # İlk bulduğunu bas ve çık
+                        break 
                         
                 html += f"<td>{val}{btn_html}</td>"
         html += "</tr>"
         
     html += "</tbody></table></div></div>"
     
-    # MOBİL GÖRÜNÜM
     html += "<div class='mobile-view'>"
     oluklu_cols = [c for c in df.columns if "OLUKLU" in str(c).upper()]
     esnek_cols = [c for c in df.columns if "ESNEK" in str(c).upper()]
@@ -262,7 +260,6 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     """
     return html
 
-# --- 2. ACİL LİSTE (MOBİL ETİKETLİ KART) ---
 def ozel_tablo_html_olustur_acil(df, url_map):
     renk_tema = "#cc0000"
     kenar_renk = "#a93226"
@@ -341,7 +338,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
                 html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                # 🛠️ YENİ ZEKA
                 all_numbers = re.findall(r'\b(\d{5,6})\b', val)
                 for num in all_numbers:
                     if num in url_map:
@@ -362,7 +358,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
     """
     return html
 
-# --- SEKMELER ---
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
