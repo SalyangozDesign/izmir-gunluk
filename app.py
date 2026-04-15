@@ -21,6 +21,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         font-size: 18px !important; font-weight: bold !important;
     }
+    /* Acil Üretim artık 3. sekme olduğu için kırmızılığı ona aktarıyoruz */
     .stTabs [data-baseweb="tab-list"] button:nth-child(3) [data-testid="stMarkdownContainer"] p {
         color: #ff0000 !important;
     }
@@ -253,26 +254,42 @@ def ozel_tablo_html_olustur_acil(df, url_map):
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 
-# ⚠️ DİKKAT: BURAYA KOPYALADIĞINIZ YENİ GID NUMARASINI YAZIN! ⚠️
+# YENİ EKLENEN GID KODU
 dunku_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1976168354&single=true&output=csv"
 
-t_gunluk, t_dunku, t_acil = st.tabs(["📋 Günlük Üretim", "⏪ Dünkü Liste", "🚨 Acil Üretim"])
-
-with t_gunluk:
-    df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
-    if not df_g.empty: components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
-    else: st.error(err_g) if err_g else st.warning("Günlük liste boş.")
+# SEKMELER (Sizin İstediğiniz Sırayla)
+t_dunku, t_gunluk, t_acil = st.tabs(["⏪ Dünkü Liste", "📋 Günlük Üretim", "🚨 Acil Üretim"])
 
 with t_dunku:
     st.markdown("<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
     df_d, url_d, err_d = veri_getir_ve_isle(dunku_url)
-    if not df_d.empty: components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
-    else: st.error(err_d) if err_d else st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
+    if not df_d.empty:
+        components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
+    else:
+        if err_d:
+            st.error(err_d)
+        else:
+            st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
+
+with t_gunluk:
+    df_g, url_g, err_g = veri_getir_ve_isle(gunluk_url)
+    if not df_g.empty:
+        components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
+    else:
+        if err_g:
+            st.error(err_g)
+        else:
+            st.warning("Günlük liste boş.")
 
 with t_acil:
     st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
     df_a, url_a, err_a = veri_getir_ve_isle(acil_url)
-    if not df_a.empty: components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
-    else: st.error(err_a) if err_a else st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
+    if not df_a.empty:
+        components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
+    else:
+        if err_a:
+            st.error(err_a)
+        else:
+            st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
 
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
