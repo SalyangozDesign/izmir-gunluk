@@ -5,7 +5,6 @@ import datetime
 import re
 import time 
 
-# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
@@ -21,13 +20,13 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         font-size: 18px !important; font-weight: bold !important;
     }
-    /* 2. Sekme (Dünkü Liste) Yeşili */
-    .stTabs [data-baseweb="tab-list"] button:nth-child(2) [data-testid="stMarkdownContainer"] p {
-        color: #27ae60 !important;
-    }
-    /* 3. Sekme (Acil Üretim) Kırmızısı */
+    /* Acil Üretim 3. sekme olduğu için kırmızılığı ona aktarıyoruz */
     .stTabs [data-baseweb="tab-list"] button:nth-child(3) [data-testid="stMarkdownContainer"] p {
         color: #ff0000 !important;
+    }
+    /* Dünkü Liste 2. sekme olduğu için yeşili ona veriyoruz */
+    .stTabs [data-baseweb="tab-list"] button:nth-child(2) [data-testid="stMarkdownContainer"] p {
+        color: #27ae60 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -55,6 +54,7 @@ def veri_getir_ve_isle(url):
     try:
         df_raw = pd.read_csv(safe_url, header=None, names=range(50), on_bad_lines='skip', engine='python') 
         
+        # 🛠️ YENİ: Excel'in 2. satırındaki kayıtlı, donmuş "Tarihi" çeken zeka!
         for i in range(min(5, len(df_raw))):
             val = str(df_raw.iloc[i, 0]).strip()
             if "İZMİR" in val.upper() or "IZMIR" in val.upper():
@@ -238,11 +238,9 @@ def ozel_tablo_html_olustur_acil(df, url_map):
 # ----------------- URL AYARLARI -----------------
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
+dunku_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1976168354&single=true&output=csv"
 
-# ⚠️ BURAYA KENDİ KOPYALADIĞINIZ GID NUMARASINI YAZMALISINIZ
-dunku_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=BURAYA_KOPYALADIGINIZ_GID_NUMARASI_GELECEK&single=true&output=csv"
-
-# DOĞRU SIRALAMA VE GÜNLÜK ÜRETİMİN İLK AÇILMASI İÇİN EN SOLA ALINDI
+# 1. GÜNLÜK ÜRETİM SİSTEME İLK AÇILIŞ SEKMESİ YAPILDI
 t_gunluk, t_dunku, t_acil = st.tabs(["📋 Günlük Üretim", "⏪ Dünkü Liste", "🚨 Acil Üretim"])
 
 with t_gunluk:
@@ -252,6 +250,7 @@ with t_gunluk:
 
 with t_dunku:
     df_d, url_d, err_d, date_d = veri_getir_ve_isle(dunku_url)
+    # 2. DÜNKÜ LİSTE ARTIK EXCELDEKİ KENDİ DONMUŞ TARİHİNİ ÇEKİYOR
     gosterilecek_tarih = date_d if date_d else "Dünkü Tarih"
     st.markdown(f"<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ ({gosterilecek_tarih})</h3>", unsafe_allow_html=True)
     
