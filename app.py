@@ -327,26 +327,46 @@ t_gunluk, t_dunku, t_acil, t_eksik = st.tabs(["📋 Günlük Üretim", "⏪ Dün
 
 with t_gunluk:
     df_g, url_g, err_g, date_g = veri_getir_ve_isle(gunluk_url)
-    if not df_g.empty: components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
-    else: st.error(err_g) if err_g else st.warning("Günlük liste boş.")
+    if not df_g.empty: 
+        components.html(ozel_tablo_html_olustur_gunluk(df_g, url_g), height=850, scrolling=True)
+    else: 
+        if err_g:
+            st.error(err_g)
+        else:
+            st.warning("Günlük liste boş.")
 
 with t_dunku:
     df_d, url_d, err_d, date_d = veri_getir_ve_isle(dunku_url)
     gosterilecek_tarih = date_d if date_d else "Dünkü Tarih"
     st.markdown(f"<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ ({gosterilecek_tarih})</h3>", unsafe_allow_html=True)
-    if not df_d.empty: components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
-    else: st.error(err_d) if err_d else st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
+    if not df_d.empty: 
+        components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
+    else: 
+        if err_d:
+            st.error(err_d)
+        else:
+            st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
 
 with t_acil:
     st.markdown("<h3 style='color: #ff0000; text-align: center;'>🚨 ACİL ÜRETİM LİSTESİ</h3>", unsafe_allow_html=True)
     df_a, url_a, err_a, date_a = veri_getir_ve_isle(acil_url)
-    if not df_a.empty: components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
-    else: st.error(err_a) if err_a else st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
+    if not df_a.empty: 
+        components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
+    else: 
+        if err_a:
+            st.error(err_a)
+        else:
+            st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
 
 with t_eksik:
     st.markdown("<h3 style='color: #c0392b; text-align: center;'>⚠️ GELMEYEN / EKSİK KLİŞE LİSTESİ</h3>", unsafe_allow_html=True)
     df_e, url_e, err_e, date_e = veri_getir_ve_isle(eksik_url)
-    if not df_e.empty: components.html(ozel_tablo_html_olustur_acil(df_e, url_e), height=850, scrolling=True)
-    else: st.error(err_e) if err_e else st.success("🎉 Harika! Tüm klişeler eksiksiz teslim alınmış görünüyor.")
+    if not df_e.empty: 
+        components.html(ozel_tablo_html_olustur_acil(df_e, url_e), height=850, scrolling=True)
+    else: 
+        if err_e:
+            st.error(err_e)
+        else:
+            st.success("🎉 Harika! Tüm klişeler eksiksiz teslim alınmış görünüyor.")
 
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
