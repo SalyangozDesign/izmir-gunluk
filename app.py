@@ -5,7 +5,6 @@ import datetime
 import re
 import time 
 
-# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
@@ -28,6 +27,10 @@ st.markdown("""
     /* Acil Üretim 3. sekme kırmızısı */
     .stTabs [data-baseweb="tab-list"] button:nth-child(3) [data-testid="stMarkdownContainer"] p {
         color: #ff0000 !important;
+    }
+    /* Gelmeyen Klişeler 4. sekme bordo */
+    .stTabs [data-baseweb="tab-list"] button:nth-child(4) [data-testid="stMarkdownContainer"] p {
+        color: #c0392b !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -185,7 +188,6 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
         .mobile-category {{ background: {renk_tema}; color: white; padding: 12px; border-radius: 8px; font-weight: bold; margin-top: 15px; margin-bottom: 15px; text-align: center; font-size: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }} 
         .mobile-card {{ background: #fff; border: 1px solid #d1d9e6; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); position: relative; }} 
         .mc-sira {{ background: {renk_tema}; color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px; position: absolute; top: -10px; left: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }} 
-        /* 🛠️ MOBİL TAŞMA SORUNUNU ÇÖZEN CSS EKLENTİSİ */
         .mc-body {{ padding-top: 5px; font-size: 13px; color: #333; line-height: 1.5; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }} 
         .gorsel-buton {{ float: none; width: 100%; display: flex; justify-content: center; padding: 12px; font-size: 14px; margin-top: 12px; border-radius: 6px; }} 
     }} 
@@ -276,7 +278,6 @@ def ozel_tablo_html_olustur_acil(df, url_map):
         .ozel-tablo thead {{ display: none; }} 
         .ozel-tablo tr {{ display: block; margin-bottom: 20px; border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); background-color: #ffffff; overflow: hidden; }} 
         .ozel-tablo tr:nth-child(even) td {{ background-color: #ffffff; }} 
-        /* 🛠️ MOBİL TAŞMA SORUNUNU ÇÖZEN CSS EKLENTİSİ */
         .ozel-tablo td {{ display: block; padding: 10px 15px; border: none; border-bottom: 1px solid #f0f0f0; font-size: 14px; position: relative; text-align: right; padding-left: 45%; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }} 
         .ozel-tablo td:last-child {{ border-bottom: none; }} 
         .ozel-tablo td::before {{ content: attr(data-label); position: absolute; left: 15px; width: 40%; text-align: left; font-weight: bold; color: {renk_tema}; font-size: 13px; }} 
@@ -306,13 +307,10 @@ def ozel_tablo_html_olustur_acil(df, url_map):
             if 'SIRA' in col.upper(): html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
             else:
                 btn_html = ""
-                if val in url_map:
-                    btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{url_map[val]}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
-                else:
-                    for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val):
-                        if num in url_map:
-                            btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
-                            break
+                for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val):
+                    if num in url_map:
+                        btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
+                        break
                 html += f"<td data-label='{display_name}'>{val}{btn_html}</td>"
         html += "</tr>"
     html += "</tbody></table></div><script>function openModal(url) { document.getElementById('modalIframe').src = url; document.getElementById('imgModal').style.display = 'flex'; } function closeModal() { document.getElementById('imgModal').style.display = 'none'; document.getElementById('modalIframe').src = ''; }</script></body></html>"
@@ -322,8 +320,10 @@ def ozel_tablo_html_olustur_acil(df, url_map):
 gunluk_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=374780490&single=true&output=csv"
 acil_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1428130476&single=true&output=csv"
 dunku_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1976168354&single=true&output=csv"
+eksik_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFjG4nZyzHg_OmUc4IgiZpKpxLyC2lO-0-TuvCq1PGOboEDD3N5Au6qcz0WJRFB7tZwTSrEQlfStv_/pub?gid=1901446944&single=true&output=csv"
 
-t_gunluk, t_dunku, t_acil = st.tabs(["📋 Günlük Üretim", "⏪ Dünkü Liste", "🚨 Acil Üretim"])
+# 4 SEKMELİ YENİ YAPI
+t_gunluk, t_dunku, t_acil, t_eksik = st.tabs(["📋 Günlük Üretim", "⏪ Dünkü Liste", "🚨 Acil Üretim", "⚠️ Gelmeyen Klişeler"])
 
 with t_gunluk:
     df_g, url_g, err_g, date_g = veri_getir_ve_isle(gunluk_url)
@@ -334,7 +334,6 @@ with t_dunku:
     df_d, url_d, err_d, date_d = veri_getir_ve_isle(dunku_url)
     gosterilecek_tarih = date_d if date_d else "Dünkü Tarih"
     st.markdown(f"<h3 style='color: #27ae60; text-align: center;'>⏪ DÜNKÜ ÜRETİM LİSTESİ ({gosterilecek_tarih})</h3>", unsafe_allow_html=True)
-    
     if not df_d.empty: components.html(ozel_tablo_html_olustur_gunluk(df_d, url_d), height=850, scrolling=True)
     else: st.error(err_d) if err_d else st.warning("Dünkü liste boş veya henüz oluşturulmadı.")
 
@@ -343,5 +342,11 @@ with t_acil:
     df_a, url_a, err_a, date_a = veri_getir_ve_isle(acil_url)
     if not df_a.empty: components.html(ozel_tablo_html_olustur_acil(df_a, url_a), height=850, scrolling=True)
     else: st.error(err_a) if err_a else st.success("🎉 Harika! Şu an için bekleyen hiçbir acil iş görünmüyor.")
+
+with t_eksik:
+    st.markdown("<h3 style='color: #c0392b; text-align: center;'>⚠️ GELMEYEN / EKSİK KLİŞE LİSTESİ</h3>", unsafe_allow_html=True)
+    df_e, url_e, err_e, date_e = veri_getir_ve_isle(eksik_url)
+    if not df_e.empty: components.html(ozel_tablo_html_olustur_acil(df_e, url_e), height=850, scrolling=True)
+    else: st.error(err_e) if err_e else st.success("🎉 Harika! Tüm klişeler eksiksiz teslim alınmış görünüyor.")
 
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
