@@ -5,15 +5,22 @@ import datetime
 import re
 import time 
 
+# --- SAYFA VE GÜVENLİK AYARLARI ---
 st.set_page_config(page_title="İzmir Günlük Paylaşım", page_icon="📋", layout="wide")
 
 st.markdown("""
     <style>
+    /* Zorunlu Light Mode (Siyah ekranı tamamen engeller, zorla beyaz yapar) */
     .stApp { background-color: #ffffff !important; color: #000000 !important; }
+    
     .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+    
+    /* Normal Streamlit Menü ve Footer Gizleme */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
     header {visibility: hidden !important;}
+    
+    /* Embed (Iframe) Modu Watermark ve Fullscreen Butonu Gizleme */
     [data-testid="stBottom"], [data-testid="stToolbar"] {display: none !important;}
     .viewerBadge_container__1QSob, .stAppDeployButton {display: none !important;}
     
@@ -370,3 +377,6 @@ with t_eksik:
             st.success("🎉 Harika! Tüm klişeler eksiksiz teslim alınmış görünüyor.")
 
 st.markdown("<br><p style='text-align: center; color: #a9a9a9; font-size: 12px;'><b>Mehmet YANGÖZ</b> - İzmir Bölge Performans Merkezi © 2026</p>", unsafe_allow_html=True)
+
+# 🌟 TRUVA ATI: Günlük giriş yapıldıkça rapor sitesini uyandırır
+components.iframe("https://dijital-izmir-panel.streamlit.app", width=0, height=0)
