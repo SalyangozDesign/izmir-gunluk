@@ -210,18 +210,23 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     for _, row in df.iterrows():
         html += "<tr>"
         for col in df.columns:
-            val = str(row[col]).strip()
-            if 'SIRA' in col.upper(): html += f"<td class='sira-sutunu'>{val}</td>"
+            original_val = str(row[col]).strip()
+            # 🛡️ HTML ZIRHI: Küçüktür/Büyüktür işaretlerini güvenli formata çevirir
+            safe_val = original_val.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
+            if 'SIRA' in col.upper(): html += f"<td class='sira-sutunu'>{safe_val}</td>"
             else:
                 btn_html = ""
-                if val in url_map:
-                    btn_html = f" <button onclick=\"openModal('{url_map[val]}')\" class='gorsel-buton'>🔍 İNCELE</button>"
+                if original_val in url_map:
+                    safe_url = url_map[original_val].replace("'", "%27").replace('"', "%22")
+                    btn_html = f" <button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
                 else:
-                    for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val):
+                    for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', original_val):
                         if num in url_map:
-                            btn_html = f" <button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 İNCELE</button>"
+                            safe_url = url_map[num].replace("'", "%27").replace('"', "%22")
+                            btn_html = f" <button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 İNCELE</button>"
                             break 
-                html += f"<td>{val}{btn_html}</td>"
+                html += f"<td>{safe_val}{btn_html}</td>"
         html += "</tr>"
     html += "</tbody></table></div></div><div class='mobile-view'>"
     
@@ -233,32 +238,40 @@ def ozel_tablo_html_olustur_gunluk(df, url_map):
     if oluklu_jobs:
         html += f"<div class='mobile-category'>📦 OLUKLU MUKAVVA</div>"
         for i, job in enumerate(oluklu_jobs, 1):
+            original_job = str(job).strip()
+            safe_job = original_job.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             btn_html = ""
-            for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', job):
+            for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', original_job):
                 if num in url_map:
-                    btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    safe_url = url_map[num].replace("'", "%27").replace('"', "%22")
+                    btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
                     break
             if not btn_html:
                 for k, v_url in url_map.items():
-                    if k in job:
-                        btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{v_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    if k in original_job:
+                        safe_url = v_url.replace("'", "%27").replace('"', "%22")
+                        btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
                         break
-            html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{job}{btn_html}</div></div>"
+            html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{safe_job}{btn_html}</div></div>"
             
     if esnek_jobs:
         html += f"<div class='mobile-category'>🍬 ESNEK AMBALAJ</div>"
         for i, job in enumerate(esnek_jobs, 1):
+            original_job = str(job).strip()
+            safe_job = original_job.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             btn_html = ""
-            for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', job):
+            for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', original_job):
                 if num in url_map:
-                    btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    safe_url = url_map[num].replace("'", "%27").replace('"', "%22")
+                    btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
                     break
             if not btn_html:
                 for k, v_url in url_map.items():
-                    if k in job:
-                        btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{v_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
+                    if k in original_job:
+                        safe_url = v_url.replace("'", "%27").replace('"', "%22")
+                        btn_html = f" <div style='margin-top:10px; border-top:1px solid #eee; padding-top:8px;'><button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 GÖRSELİ İNCELE</button></div>"
                         break
-            html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{job}{btn_html}</div></div>"
+            html += f"<div class='mobile-card'><div class='mc-sira'>Sıra {i}</div><div class='mc-body'>{safe_job}{btn_html}</div></div>"
             
     html += "</div><script>function openModal(url) { document.getElementById('modalIframe').src = url; document.getElementById('imgModal').style.display = 'flex'; } function closeModal() { document.getElementById('imgModal').style.display = 'none'; document.getElementById('modalIframe').src = ''; }</script></body></html>"
     return html
@@ -309,16 +322,20 @@ def ozel_tablo_html_olustur_acil(df, url_map):
     for _, row in df.iterrows():
         html += "<tr>"
         for col in df.columns:
-            val = str(row[col]).strip()
+            original_val = str(row[col]).strip()
+            # 🛡️ HTML ZIRHI
+            safe_val = original_val.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            
             display_name = re.sub(r'_\d+$', '', col)
-            if 'SIRA' in col.upper(): html += f"<td class='sira-sutunu' data-label='Sıra No'>{val}</td>"
+            if 'SIRA' in col.upper(): html += f"<td class='sira-sutunu' data-label='Sıra No'>{safe_val}</td>"
             else:
                 btn_html = ""
-                for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', val):
+                for num in re.findall(r'(?<!\d)(\d{5,6})(?!\d)', original_val):
                     if num in url_map:
-                        btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{url_map[num]}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
+                        safe_url = url_map[num].replace("'", "%27").replace('"', "%22")
+                        btn_html = f" <div style='margin-top:8px;'><button onclick=\"openModal('{safe_url}')\" class='gorsel-buton'>🔍 İNCELE</button></div>"
                         break
-                html += f"<td data-label='{display_name}'>{val}{btn_html}</td>"
+                html += f"<td data-label='{display_name}'>{safe_val}{btn_html}</td>"
         html += "</tr>"
     html += "</tbody></table></div><script>function openModal(url) { document.getElementById('modalIframe').src = url; document.getElementById('imgModal').style.display = 'flex'; } function closeModal() { document.getElementById('imgModal').style.display = 'none'; document.getElementById('modalIframe').src = ''; }</script></body></html>"
     return html
